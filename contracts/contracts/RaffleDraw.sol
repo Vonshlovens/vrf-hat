@@ -19,6 +19,10 @@ import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/V
 ///      `rawFulfillRandomWords`; only the coordinator can deliver the word.
 ///   4. Winners are a pure function of (randomWord, entrantCount, winnerCount),
 ///      exposed as `pickWinners`, so anyone can recompute them.
+///
+/// Roles: the `drawer` is the app server's hot key and can only request draws.
+/// The `owner` (a wallet the operator keeps offline) changes VRF settings and
+/// can replace the drawer, so a leaked server key can't touch configuration.
 contract RaffleDraw is VRFConsumerBaseV2Plus {
     struct Draw {
         bytes32 entrantsRoot;
@@ -36,6 +40,7 @@ contract RaffleDraw is VRFConsumerBaseV2Plus {
     /// @notice Bounds the memory `pickWinners` allocates.
     uint32 public constant MAX_ENTRANTS = 10_000;
 
+    address public drawer;
     uint256 public subscriptionId;
     bytes32 public keyHash;
     uint16 public requestConfirmations;
@@ -54,6 +59,7 @@ contract RaffleDraw is VRFConsumerBaseV2Plus {
     );
     event DrawRetried(bytes32 indexed raffleId, uint256 indexed previousRequestId, uint256 indexed requestId);
     event DrawFulfilled(bytes32 indexed raffleId, uint256 indexed requestId, uint256 randomWord);
+    event DrawerSet(address indexed drawer);
     event VrfConfigSet(
         uint256 subscriptionId,
         bytes32 keyHash,
@@ -71,6 +77,8 @@ contract RaffleDraw is VRFConsumerBaseV2Plus {
     error InvalidRoot();
     error InvalidEntrantCount(uint32 entrantCount);
     error InvalidWinnerCount(uint32 winnerCount, uint32 entrantCount);
+    error OnlyDrawer(address caller);
+    error ZeroDrawer();
 
     constructor(
         address coordinator,
@@ -78,9 +86,19 @@ contract RaffleDraw is VRFConsumerBaseV2Plus {
         bytes32 keyHash_,
         uint16 requestConfirmations_,
         uint32 callbackGasLimit_,
-        bool nativePayment_
+        bool nativePayment_,
+        address drawer_,
+        address proposedOwner
     ) VRFConsumerBaseV2Plus(coordinator) {
         _setVrfConfig(subscriptionId_, keyHash_, requestConfirmations_, callbackGasLimit_, nativePayment_);
+        _setDrawer(drawer_);
+        // The deployer owns the contract until `proposedOwner` calls acceptOwnership().
+        if (proposedOwner != address(0) && proposedOwner != msg.sender) transferOwnership(proposedOwner);
+    }
+
+    modifier onlyDrawer() {
+        if (msg.sender != drawer) revert OnlyDrawer(msg.sender);
+        _;
     }
 
     // ---------------------------------------------------------------- draws
@@ -88,7 +106,7 @@ contract RaffleDraw is VRFConsumerBaseV2Plus {
     /// @notice Lock a raffle's entrant list and request its random word.
     function requestDraw(bytes32 raffleId, bytes32 entrantsRoot, uint32 entrantCount, uint32 winnerCount)
         external
-        onlyOwner
+        onlyDrawer
         returns (uint256 requestId)
     {
         if (raffleId == bytes32(0)) revert InvalidRaffleId();
@@ -110,7 +128,7 @@ contract RaffleDraw is VRFConsumerBaseV2Plus {
     /// @notice Replace a request VRF never answered (for example, because the
     /// subscription ran dry). The committed entrant list is unchanged, and a
     /// late answer to the old request is ignored.
-    function retryDraw(bytes32 raffleId) external onlyOwner returns (uint256 requestId) {
+    function retryDraw(bytes32 raffleId) external onlyDrawer returns (uint256 requestId) {
         Draw storage d = s_draws[raffleId];
         if (d.requestId == 0) revert NotRequested(raffleId);
         if (d.fulfilledBlock != 0) revert AlreadyFulfilled(raffleId);
@@ -207,6 +225,16 @@ contract RaffleDraw is VRFConsumerBaseV2Plus {
     }
 
     // ---------------------------------------------------------------- admin
+
+    function setDrawer(address drawer_) external onlyOwner {
+        _setDrawer(drawer_);
+    }
+
+    function _setDrawer(address drawer_) private {
+        if (drawer_ == address(0)) revert ZeroDrawer();
+        drawer = drawer_;
+        emit DrawerSet(drawer_);
+    }
 
     function setVrfConfig(
         uint256 subscriptionId_,

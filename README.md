@@ -66,25 +66,31 @@ pnpm verify-draw http://localhost:5173 <slug> http://127.0.0.1:8545   # verify p
 
 ## Deploying to Base Sepolia + Cloudflare
 
-1. **Wallet.** Create a fresh key for deploying and drawing, and fund it with Base Sepolia ETH
-   ([faucets](https://faucets.chain.link/base-sepolia)).
-2. **VRF subscription.** At [vrf.chain.link](https://vrf.chain.link), create a subscription on Base
-   Sepolia and fund it with testnet ETH. Draws pay in native ETH.
-3. **Contract.**
-   ```sh
-   cd contracts
-   pnpm exec hardhat keystore set BASE_SEPOLIA_RPC_URL     # or export them as env vars
-   pnpm exec hardhat keystore set DEPLOYER_PRIVATE_KEY
-   VRF_SUBSCRIPTION_ID=<id> pnpm deploy:base-sepolia
-   ```
-   Then add the printed contract address as a consumer of the subscription at vrf.chain.link.
-4. **Database.** Run `pnpm db:migrate` with `DATABASE_URL` pointing at the Neon `main` branch.
-5. **OAuth apps.** The callback URL is `<ORIGIN>/api/auth/callback/<github|google|discord>`.
-6. **Worker.** Run `pnpm exec wrangler login`, then set secrets with `wrangler secret put`
+The contract has two roles. The **drawer** is the app server's key: it can only request draws and
+holds a little ETH for gas. The **owner** is your own wallet (MetaMask). It can replace the drawer
+and change VRF settings, so a leaked server key can't reconfigure anything. The VRF subscription
+also belongs to your wallet, so the server key can't spend it.
+
+1. **Drawer key.** Generate a fresh key into `.env` as `DRAWER_PRIVATE_KEY` (never reuse a wallet
+   key). Send it a little Base Sepolia ETH.
+2. **VRF subscription.** In MetaMask on Base Sepolia, get ETH from the
+   [faucet](https://faucets.chain.link/base-sepolia). Then create a subscription at
+   [vrf.chain.link](https://vrf.chain.link) and fund it with ETH.
+3. **Deploy.** Set `OWNER_ADDRESS` (your MetaMask address) and `VRF_SUBSCRIPTION_ID` in `.env`, then
+   run `pnpm -C contracts deploy:base-sepolia` and copy the printed address into
+   `PUBLIC_RAFFLE_CONTRACT`.
+4. **Finish on-chain setup.** Add the contract as a consumer of your subscription at vrf.chain.link.
+   Open `/admin` in the app, connect MetaMask, and accept ownership.
+5. **Database.** Run `pnpm db:migrate` with `DATABASE_URL` pointing at the Neon `main` branch.
+6. **OAuth apps.** The callback URL is `<ORIGIN>/api/auth/callback/<github|google|discord>`.
+7. **Worker.** Run `pnpm exec wrangler login`, then set secrets with `wrangler secret put`
    (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `DRAWER_PRIVATE_KEY`, `RESEND_API_KEY`, OAuth secrets).
    Set the non-secret values (`ORIGIN`, `PUBLIC_CHAIN_ID=84532`, `PUBLIC_RAFFLE_CONTRACT`,
    `EMAIL_FROM`, client IDs) as `vars` in `wrangler.jsonc`. Then run
    `pnpm build && pnpm exec wrangler deploy`.
+
+For mainnet, keep the owner on a hardware wallet. Consider a signing service (cloud KMS, Turnkey,
+Privy) for the drawer instead of a raw key in a Worker secret.
 
 Base mainnet: add the mainnet coordinator to `src/lib/chain/chains.ts` (`officialCoordinator`)
 and a `base` branch to `contracts/scripts/deploy.ts`, using values from

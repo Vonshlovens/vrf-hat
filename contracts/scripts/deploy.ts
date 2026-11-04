@@ -1,6 +1,8 @@
 // Deploys RaffleDraw.
 //   localhost:   also deploys Chainlink's VRF mock and a funded subscription.
-//   baseSepolia: uses the real VRF v2.5 coordinator; needs VRF_SUBSCRIPTION_ID.
+//   baseSepolia: uses the real VRF v2.5 coordinator; needs VRF_SUBSCRIPTION_ID
+//                and OWNER_ADDRESS (the wallet that will own the contract).
+// The deploying account becomes the drawer (the app server's key).
 // Writes deployments/<chainId>.json, which the app reads via PUBLIC_* env vars.
 import { mkdir, writeFile } from "node:fs/promises";
 import { network } from "hardhat";
@@ -65,6 +67,17 @@ function baseSepoliaVrf(): VrfConfig {
   };
 }
 
+const [deployer] = await viem.getWalletClients();
+const drawer = deployer.account.address;
+const proposedOwner = (process.env.OWNER_ADDRESS ||
+  "0x0000000000000000000000000000000000000000") as Address;
+if (
+  networkName !== "localhost" &&
+  (!/^0x[0-9a-fA-F]{40}$/.test(proposedOwner) || /^0x0{40}$/.test(proposedOwner))
+) {
+  throw new Error("Set OWNER_ADDRESS to the wallet that should own the contract");
+}
+
 const vrf =
   networkName === "localhost"
     ? await localVrf()
@@ -81,6 +94,8 @@ const raffle = await viem.deployContract("RaffleDraw", [
   vrf.requestConfirmations,
   vrf.callbackGasLimit,
   vrf.nativePayment,
+  drawer,
+  proposedOwner,
 ]);
 const deployBlock = await publicClient.getBlockNumber();
 
@@ -98,6 +113,8 @@ const deployment = {
   deployBlock: deployBlock.toString(),
   coordinator: vrf.coordinator,
   coordinatorIsMock: networkName === "localhost",
+  drawer,
+  proposedOwner,
   subscriptionId: vrf.subscriptionId.toString(),
   keyHash: vrf.keyHash,
 };
@@ -108,6 +125,7 @@ console.log(JSON.stringify(deployment, null, 2));
 console.log(`\nApp env:\nPUBLIC_CHAIN_ID=${chainId}\nPUBLIC_RAFFLE_CONTRACT=${raffle.address}`);
 if (networkName !== "localhost") {
   console.log(
-    `\nNext: add ${raffle.address} as a consumer of subscription ${vrf.subscriptionId} at https://vrf.chain.link`,
+    `\nNext:\n  1. Add ${raffle.address} as a consumer of subscription ${vrf.subscriptionId} at https://vrf.chain.link`,
   );
+  console.log(`  2. Accept ownership with ${proposedOwner} on the app's /admin page`);
 }

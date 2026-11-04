@@ -32,6 +32,16 @@ export const raffleDrawAbi = [
         name: "nativePayment_",
         type: "bool",
       },
+      {
+        internalType: "address",
+        name: "drawer_",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "proposedOwner",
+        type: "address",
+      },
     ],
     stateMutability: "nonpayable",
     type: "constructor",
@@ -137,6 +147,17 @@ export const raffleDrawAbi = [
     inputs: [
       {
         internalType: "address",
+        name: "caller",
+        type: "address",
+      },
+    ],
+    name: "OnlyDrawer",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
         name: "have",
         type: "address",
       },
@@ -168,6 +189,11 @@ export const raffleDrawAbi = [
   {
     inputs: [],
     name: "ZeroAddress",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ZeroDrawer",
     type: "error",
   },
   {
@@ -268,6 +294,19 @@ export const raffleDrawAbi = [
       },
     ],
     name: "DrawRetried",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "drawer",
+        type: "address",
+      },
+    ],
+    name: "DrawerSet",
     type: "event",
   },
   {
@@ -386,6 +425,19 @@ export const raffleDrawAbi = [
         internalType: "uint32",
         name: "",
         type: "uint32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "drawer",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
       },
     ],
     stateMutability: "view",
@@ -669,6 +721,19 @@ export const raffleDrawAbi = [
       },
     ],
     name: "setCoordinator",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "drawer_",
+        type: "address",
+      },
+    ],
+    name: "setDrawer",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

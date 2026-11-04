@@ -1,6 +1,13 @@
 import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
 import { configVariable, defineConfig } from "hardhat/config";
 
+// Share the app's .env, so the drawer key lives in one place.
+try {
+  process.loadEnvFile("../.env");
+} catch {
+  // no .env; rely on the environment
+}
+
 export default defineConfig({
   plugins: [hardhatToolboxViemPlugin],
   solidity: {
@@ -19,14 +26,15 @@ export default defineConfig({
     baseSepolia: {
       type: "http",
       chainType: "op",
-      url: configVariable("BASE_SEPOLIA_RPC_URL"),
-      accounts: [configVariable("DEPLOYER_PRIVATE_KEY")],
+      url: process.env.BASE_SEPOLIA_RPC_URL ?? "https://sepolia.base.org",
+      // The drawer key deploys; ownership is then handed to OWNER_ADDRESS.
+      accounts: [configVariable("DRAWER_PRIVATE_KEY")],
     },
     base: {
       type: "http",
       chainType: "op",
       url: configVariable("BASE_RPC_URL"),
-      accounts: [configVariable("DEPLOYER_PRIVATE_KEY")],
+      accounts: [configVariable("DRAWER_PRIVATE_KEY")],
     },
   },
 });

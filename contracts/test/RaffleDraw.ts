@@ -27,7 +27,7 @@ function entrants(n: number): CommittedEntrant[] {
 
 async function deploy() {
   const publicClient = await viem.getPublicClient();
-  const [owner, stranger] = await viem.getWalletClients();
+  const [owner, stranger, admin] = await viem.getWalletClients();
   const coordinator = await viem.deployContract("VRFCoordinatorV2_5Mock", [
     100000000000000000n,
     1000000000n,
@@ -50,9 +50,11 @@ async function deploy() {
     3,
     200_000,
     false,
+    owner.account.address, // drawer
+    admin.account.address, // proposed owner
   ]);
   await coordinator.write.addConsumer([subId, raffle.address]);
-  return { publicClient, owner, stranger, coordinator, raffle };
+  return { publicClient, owner, stranger, admin, coordinator, raffle };
 }
 
 async function requestAndGetId(
@@ -148,7 +150,7 @@ describe("RaffleDraw", () => {
     );
   });
 
-  it("rejects bad parameters and non-owners", async () => {
+  it("rejects bad parameters and non-drawers", async () => {
     const ctx = await deploy();
     const id = raffleKey("raffle-bad");
     const root = commitmentRoot(entrants(5));
@@ -170,10 +172,10 @@ describe("RaffleDraw", () => {
     const asStranger = await viem.getContractAt("RaffleDraw", ctx.raffle.address, {
       client: { wallet: ctx.stranger },
     });
-    // Chainlink's ConfirmedOwner uses a revert string, not a custom error.
-    await viem.assertions.revertWith(
+    await viem.assertions.revertWithCustomError(
       asStranger.write.requestDraw([id, root, 5, 1]),
-      "Only callable by owner",
+      ctx.raffle,
+      "OnlyDrawer",
     );
   });
 
@@ -236,5 +238,38 @@ describe("RaffleDraw", () => {
       ctx.raffle,
       "NotFulfilled",
     );
+  });
+
+  it("hands ownership to the proposed owner, who alone can change settings", async () => {
+    const ctx = await deploy();
+    const asAdmin = await viem.getContractAt("RaffleDraw", ctx.raffle.address, {
+      client: { wallet: ctx.admin },
+    });
+    const asStranger = await viem.getContractAt("RaffleDraw", ctx.raffle.address, {
+      client: { wallet: ctx.stranger },
+    });
+
+    await viem.assertions.revertWith(asStranger.write.acceptOwnership(), "Must be proposed owner");
+    await asAdmin.write.acceptOwnership();
+    assert.equal(
+      (await ctx.raffle.read.owner()).toLowerCase(),
+      ctx.admin.account.address.toLowerCase(),
+    );
+
+    // The drawer (deployer) no longer has owner powers.
+    await viem.assertions.revertWith(
+      ctx.raffle.write.setDrawer([ctx.stranger.account.address]),
+      "Only callable by owner",
+    );
+
+    // The owner can rotate the drawer; the old drawer can no longer draw.
+    await asAdmin.write.setDrawer([ctx.stranger.account.address]);
+    const root = commitmentRoot(entrants(3));
+    await viem.assertions.revertWithCustomError(
+      ctx.raffle.write.requestDraw([raffleKey("rotated"), root, 3, 1]),
+      ctx.raffle,
+      "OnlyDrawer",
+    );
+    await asStranger.write.requestDraw([raffleKey("rotated"), root, 3, 1]);
   });
 });
