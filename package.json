@@ -9,19 +9,20 @@
   },
   "scripts": {
     "dev": "vp dev",
-    "build": "wrangler types --include-runtime=false --check && vp build",
+    "build": "wrangler types --include-runtime=false && vp -C . build",
     "preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
-    "prepare": "vp config && svelte-kit sync || echo ''",
-    "check": "wrangler types --include-runtime=false --check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "prepare": "vp config && (wrangler types --include-runtime=false >/dev/null; svelte-kit sync) || echo ''",
+    "check": "wrangler types --include-runtime=false && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "gen": "wrangler types --include-runtime=false",
-    "test:unit": "vp test",
-    "test": "npm run test:unit -- --run",
-    "db:push": "drizzle-kit push",
+    "test": "vp test --run && pnpm -C contracts test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes"
+    "auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
+    "chain": "pnpm -C contracts node",
+    "chain:deploy": "pnpm -C contracts deploy:local",
+    "verify-draw": "node scripts/verify-draw.ts"
   },
   "dependencies": {
     "viem": "2.57.16"

@@ -2,6 +2,9 @@
   "extends": "$app/tsconfig",
   "compilerOptions": {
     "strict": true,
+    // wrangler types imports the built worker (.svelte-kit/cloudflare) for its
+    // GlobalProps typing; don't type-check that generated JavaScript.
+    "checkJs": false,
     "types": ["$app/types", "./worker-configuration.d.ts", "node"]
   },
   "include": ["src", "vite.config.ts", "drizzle.config.ts"]

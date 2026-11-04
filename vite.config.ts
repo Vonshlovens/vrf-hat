@@ -10,6 +10,10 @@ export default defineConfig({
   lint: {
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
+    // node:test's describe/it return promises the runner awaits itself.
+    overrides: [
+      { files: ["contracts/test/**"], rules: { "typescript/no-floating-promises": "off" } },
+    ],
     // Type checking is owned by svelte-check (`vpr check`), which understands
     // .svelte files and the wrangler-generated Env types.
     options: { typeAware: true, typeCheck: false },

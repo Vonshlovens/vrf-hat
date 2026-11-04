@@ -105,9 +105,7 @@ await mkdir("deployments", { recursive: true });
 await writeFile(`deployments/${chainId}.json`, JSON.stringify(deployment, null, 2) + "\n");
 
 console.log(JSON.stringify(deployment, null, 2));
-console.log(
-  `\nApp env:\nPUBLIC_CHAIN_ID=${chainId}\nPUBLIC_RAFFLE_CONTRACT=${raffle.address}\nPUBLIC_DEPLOY_BLOCK=${deployBlock}`,
-);
+console.log(`\nApp env:\nPUBLIC_CHAIN_ID=${chainId}\nPUBLIC_RAFFLE_CONTRACT=${raffle.address}`);
 if (networkName !== "localhost") {
   console.log(
     `\nNext: add ${raffle.address} as a consumer of subscription ${vrf.subscriptionId} at https://vrf.chain.link`,
