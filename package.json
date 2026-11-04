@@ -23,6 +23,9 @@
     "db:studio": "drizzle-kit studio",
     "auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes"
   },
+  "dependencies": {
+    "viem": "2.57.16"
+  },
   "devDependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@sveltejs/adapter-cloudflare": "^8.0.0",

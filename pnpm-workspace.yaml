@@ -1,3 +1,5 @@
+packages:
+  - contracts
 onlyBuiltDependencies:
   - workerd
   - esbuild
