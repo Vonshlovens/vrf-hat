@@ -75,7 +75,8 @@ also belongs to your wallet, so the server key can't spend it.
    key). Send it a little Base Sepolia ETH.
 2. **VRF subscription.** In MetaMask on Base Sepolia, get ETH from the
    [faucet](https://faucets.chain.link/base-sepolia). Then create a subscription at
-   [vrf.chain.link](https://vrf.chain.link) and fund it with ETH.
+   [vrf.chain.link](https://vrf.chain.link) and fund it with testnet LINK. To pay VRF fees in ETH
+   instead, fund it with ETH and set `VRF_PAY_WITH=eth` before deploying.
 3. **Deploy.** Set `OWNER_ADDRESS` (your MetaMask address) and `VRF_SUBSCRIPTION_ID` in `.env`, then
    run `pnpm -C contracts deploy:base-sepolia` and copy the printed address into
    `PUBLIC_RAFFLE_CONTRACT`.

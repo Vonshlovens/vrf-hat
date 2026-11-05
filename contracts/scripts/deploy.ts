@@ -63,7 +63,9 @@ function baseSepoliaVrf(): VrfConfig {
     keyHash: BASE_SEPOLIA.keyHash,
     requestConfirmations: 3,
     callbackGasLimit: 200_000,
-    nativePayment: true, // pay VRF fees in ETH from the subscription
+    // Which subscription balance pays VRF fees: LINK (default) or ETH.
+    // The owner can switch later with setVrfConfig.
+    nativePayment: process.env.VRF_PAY_WITH === "eth",
   };
 }
 
