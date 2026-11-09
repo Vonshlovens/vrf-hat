@@ -22,12 +22,14 @@
     "auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
     "chain": "pnpm -C contracts node",
     "chain:deploy": "pnpm -C contracts deploy:local",
-    "verify-draw": "node scripts/verify-draw.ts"
+    "verify-draw": "node scripts/verify-draw.ts",
+    "faucet": "node scripts/faucet.ts"
   },
   "dependencies": {
     "viem": "2.57.16"
   },
   "devDependencies": {
+    "@coinbase/cdp-sdk": "^1.61.0",
     "@neondatabase/serverless": "^1.1.0",
     "@sveltejs/adapter-cloudflare": "^8.0.0",
     "@sveltejs/kit": "^3.0.0",
