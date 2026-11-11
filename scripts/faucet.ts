@@ -14,7 +14,7 @@ import { baseSepolia } from "viem/chains";
 process.loadEnvFile(".env");
 
 const CLAIM = parseEther("0.0001");
-const CONCURRENCY = 5;
+const CONCURRENCY = 2;
 
 const target = parseEther(process.argv[2] ?? "0.03");
 const address = (process.argv[3] ??
@@ -37,6 +37,7 @@ const claimsNeeded = start >= target ? 0 : Number((target - start + CLAIM - 1n) 
 
 let sent = 0;
 let failed = 0;
+let rateLimited = 0;
 let stopReason = null as string | null; // set by workers
 
 async function worker() {
@@ -50,6 +51,11 @@ async function worker() {
       const e = err as { statusCode?: number; errorType?: string; errorMessage?: string };
       if (e.errorType === "faucet_limit_exceeded" || e.statusCode === 403) {
         stopReason = e.errorMessage ?? String(err);
+      } else if (e.statusCode === 429) {
+        // Request-rate limit (not the daily cap): wait it out.
+        rateLimited++;
+        if (rateLimited % 10 === 1) console.log(`  rate limited at ${sent} claims, waiting...`);
+        await new Promise((r) => setTimeout(r, 15_000));
       } else if (++failed > 20) {
         stopReason = `too many errors, last: ${e.errorMessage ?? String(err)}`;
       } else {
@@ -68,7 +74,7 @@ if (claimsNeeded > 0) {
 
   // Faucet transactions confirm over a few blocks.
   const expected = start + BigInt(sent) * CLAIM;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 60; i++) {
     if ((await client.getBalance({ address })) >= expected) break;
     await new Promise((r) => setTimeout(r, 2000));
   }
