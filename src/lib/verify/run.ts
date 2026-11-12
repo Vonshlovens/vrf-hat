@@ -12,7 +12,7 @@ import {
   type Log,
 } from "viem";
 import { chainInfo, explorerLink } from "#lib/chain/chains.ts";
-import { coordinatorAbi } from "#lib/chain/coordinator-abi.ts";
+import { batchCoordinatorAbi, coordinatorAbi } from "#lib/chain/coordinator-abi.ts";
 import { raffleDrawAbi } from "#lib/chain/raffle-draw-abi.ts";
 import { commitmentRoot, type CommittedEntrant } from "#lib/draw/commitment.ts";
 import { pickWinners, stepHash } from "#lib/draw/winners.ts";
@@ -58,6 +58,33 @@ export type VerifyResult = {
 const short = (h: string, n = 10) =>
   h.length > 2 * n + 2 ? `${h.slice(0, n + 2)}…${h.slice(-n)}` : h;
 const hex = (v: bigint) => `0x${v.toString(16).padStart(64, "0")}`;
+
+type VrfProof = {
+  pk: readonly [bigint, bigint];
+  gamma: readonly [bigint, bigint];
+  c: bigint;
+  s: bigint;
+  seed: bigint;
+};
+
+/**
+ * Pull this request's proof out of the fulfilment calldata. Chainlink either
+ * calls the coordinator directly, or bundles several proofs through its batch
+ * contract; in a batch, ours is the one whose key and seed hash to our request ID.
+ */
+function findProof(input: Hex, requestId: bigint) {
+  try {
+    const { args } = decodeFunctionData({ abi: coordinatorAbi, data: input });
+    const [proof, rc] = args as unknown as [VrfProof, { blockNum: bigint }];
+    return { proof, rc, batched: false };
+  } catch {
+    // Not a direct call; try the batch form below.
+  }
+  const { args } = decodeFunctionData({ abi: batchCoordinatorAbi, data: input });
+  const [proofs, rcs] = args as unknown as [readonly VrfProof[], readonly { blockNum: bigint }[]];
+  const i = proofs.findIndex((p) => requestIdOf(keyHashOf(p.pk), p.seed) === requestId);
+  return i === -1 ? null : { proof: proofs[i], rc: rcs[i], batched: true };
+}
 
 function finish(step: Step) {
   step.status = step.checks.every((c) => c.ok) ? "pass" : "fail";
@@ -280,17 +307,9 @@ export async function verifyDraw(
         logs: fulfilReceipt.logs as Log[],
         eventName: "RandomWordsFulfilled",
       }).find((l) => l.args.requestId === draw.requestId);
-      const { args } = decodeFunctionData({ abi: coordinatorAbi, data: fulfilTx.input });
-      const [proof, rc] = args as unknown as [
-        {
-          pk: readonly [bigint, bigint];
-          gamma: readonly [bigint, bigint];
-          c: bigint;
-          s: bigint;
-          seed: bigint;
-        },
-        { blockNum: bigint },
-      ];
+      const found = findProof(fulfilTx.input, draw.requestId);
+      if (!found) throw new Error("Couldn't find this draw's proof in the fulfilment transaction.");
+      const { proof, rc, batched } = found;
       const keyHash = keyHashOf(proof.pk);
       const seedBlock = await client.getBlock({ blockNumber: rc.blockNum });
       const actualSeed = actualSeedOf(proof.seed, seedBlock.hash!);
@@ -309,10 +328,21 @@ export async function verifyDraw(
         },
         { label: "VRF output", value: short(hex(output), 12), mono: true },
       );
+      if (batched && fulfilTx.to) {
+        proofStep.facts.push({
+          label: "Delivered through",
+          value: `${fulfilTx.to} (Chainlink's batch contract, which passes each proof to the coordinator)`,
+          href: link("address", fulfilTx.to),
+          mono: true,
+        });
+      }
       proofStep.checks.push(
         {
-          label: "Answered by the same coordinator, which only accepts valid proofs",
-          ok: Boolean(fulfilTx.to && vrfFulfil && isAddressEqual(fulfilTx.to, vrfFulfil.address)),
+          label:
+            "Answered by the coordinator that took the request, which only accepts valid proofs",
+          ok: Boolean(
+            vrfFulfil && vrfRequest && isAddressEqual(vrfFulfil.address, vrfRequest.address),
+          ),
         },
         {
           label: "The coordinator reports the callback succeeded",
@@ -338,7 +368,7 @@ export async function verifyDraw(
       if (info.officialCoordinator) {
         proofStep.checks.push({
           label: "The answer came from Chainlink's published coordinator",
-          ok: Boolean(fulfilTx.to && isAddressEqual(fulfilTx.to, info.officialCoordinator)),
+          ok: Boolean(vrfFulfil && isAddressEqual(vrfFulfil.address, info.officialCoordinator)),
         });
       }
       finish(proofStep);
