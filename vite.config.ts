@@ -6,7 +6,8 @@ export default defineConfig({
   staged: {
     "*": "vp check --fix",
   },
-  fmt: { ignorePatterns: ["worker-configuration.d.ts"] },
+  // src/lib/von is a verbatim snapshot of the von design system; keep it byte-identical.
+  fmt: { ignorePatterns: ["worker-configuration.d.ts", "src/lib/von/**"] },
   lint: {
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },

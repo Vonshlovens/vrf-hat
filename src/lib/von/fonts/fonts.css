@@ -1,0 +1,21 @@
+/*
+ * Optional: self-hosted JetBrains Mono (variable 100–800, latin subset).
+ * SIL Open Font License 1.1 — see OFL.txt. Files from @fontsource-variable/jetbrains-mono 5.3.0.
+ * Load before tokens.css. Without it, --font-mono falls back to ui-monospace.
+ */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("./jetbrains-mono-latin-wght-normal.woff2") format("woff2-variations"),
+       url("./jetbrains-mono-latin-wght-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: italic;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("./jetbrains-mono-latin-wght-italic.woff2") format("woff2-variations"),
+       url("./jetbrains-mono-latin-wght-italic.woff2") format("woff2");
+}

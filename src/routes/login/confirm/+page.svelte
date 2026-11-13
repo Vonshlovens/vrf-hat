@@ -13,32 +13,26 @@
   <meta name="referrer" content="no-referrer" />
 </svelte:head>
 
-<div class="wrap narrow">
-  <h1>Sign in</h1>
+<div class="page narrow">
+  <header class="page-head">
+    <h1>Sign in</h1>
+  </header>
   {#if hasToken}
-    <p>Finish signing in to VRF Hat on this device.</p>
-    <form method="GET" action="/api/auth/magic-link/verify" data-sveltekit-reload>
-      {#each params as [name, value] (name)}
-        <input type="hidden" {name} {value} />
-      {/each}
-      <button>Sign in</button>
-    </form>
-    <p class="muted small">If you didn't ask to sign in, close this page. Nothing happens until you press the button.</p>
+    <div class="flow">
+      <p class="lede">Finish signing in to VRF Hat on this device.</p>
+      <form method="GET" action="/api/auth/magic-link/verify" data-sveltekit-reload>
+        {#each params as [name, value] (name)}
+          <input type="hidden" {name} {value} />
+        {/each}
+        <button class="btn primary">Sign in</button>
+      </form>
+      <p class="hint">If you didn't ask to sign in, close this page. Nothing happens until you press the button.</p>
+    </div>
   {:else}
-    <p class="error">This sign-in link is incomplete. Copy the whole link from the email, or request a new one.</p>
-    <a class="button" href="/login">Get a new link</a>
+    <div class="state" data-tone="fail" role="alert">
+      <h3>This sign-in link is incomplete</h3>
+      <p>Copy the whole link from the email, or request a new one.</p>
+      <div class="btn-row"><a class="btn" href="/login">Get a new link</a></div>
+    </div>
   {/if}
 </div>
-
-<style>
-  .narrow {
-    max-width: 28rem;
-    padding-top: 2rem;
-  }
-  form {
-    margin: 1.5rem 0;
-  }
-  .small {
-    font-size: var(--t-sm);
-  }
-</style>

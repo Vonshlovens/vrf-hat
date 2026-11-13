@@ -1,4 +1,4 @@
-<!-- A raffle ticket: body + perforated stub with the ticket number. -->
+<!-- A raffle ticket, typed and ruled: the name, a perforation, and the numbered stub. -->
 <script lang="ts">
   let {
     number,
@@ -8,73 +8,60 @@
   }: { number: string; label: string; size?: "sm" | "md" | "lg"; tone?: "ticket" | "plain" } = $props();
 </script>
 
-<div class="ticket {size} {tone}">
-  <span class="label">{label}</span>
-  <span class="stub" aria-label="Ticket number {number}">No. {number}</span>
+<div class="ticket {size}" class:drawn={tone === "ticket"}>
+  <span class="name">{label}</span>
+  <span class="stub" aria-label="Ticket number {number}">No.&nbsp;{number}</span>
 </div>
 
 <style>
   .ticket {
-    --notch: 6px;
-    --fill: var(--ticket);
     display: inline-flex;
     align-items: stretch;
     max-width: 100%;
-    color: var(--ticket-ink);
-  }
-  .plain {
-    --fill: var(--surface);
+    border: var(--rule-w) solid var(--ink);
+    background: var(--paper-raised);
     color: var(--ink);
+    line-height: var(--lh);
   }
-  /* Each half cuts its own half-notch, so the notches always sit on the perforation. */
-  .label,
-  .stub {
-    background: var(--fill);
+  /* A drawn ticket is inverse ink: the strongest fill the system allows short of the mark. */
+  .drawn {
+    background: var(--ink);
+    color: var(--paper);
   }
-  .label {
-    padding: 0.45em 0.9em;
-    font-weight: 600;
+  .name {
+    min-width: 0;
+    padding: var(--s-1) 1.5ch;
+    font-weight: var(--fw-bold);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-width: 0;
-    border-radius: 3px 0 0 3px;
-    mask:
-      radial-gradient(circle var(--notch) at 100% 0, #0000 98%, #000) top / 100% 51% no-repeat,
-      radial-gradient(circle var(--notch) at 100% 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
   }
   .stub {
     flex: none;
     display: grid;
     place-items: center;
-    padding: 0 0.7em;
-    border-radius: 0 3px 3px 0;
-    font-family: var(--mono);
-    font-size: 0.78em;
+    padding: 0 1ch;
+    border-left: var(--rule-w) dashed currentColor;
+    font-size: var(--fs-sm);
+    font-variant-numeric: tabular-nums lining-nums;
     white-space: nowrap;
-    background-image: linear-gradient(currentColor 50%, transparent 0);
-    background-size: 1.5px 6px;
-    background-repeat: repeat-y;
-    background-position: 0 0;
-    background-origin: border-box;
-    mask:
-      radial-gradient(circle var(--notch) at 0 0, #0000 98%, #000) top / 100% 51% no-repeat,
-      radial-gradient(circle var(--notch) at 0 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
-  }
-  .stub {
-    background-color: var(--fill);
   }
   .sm {
-    font-size: var(--t-sm);
-    --notch: 5px;
+    font-size: var(--fs-sm);
+    line-height: var(--lh-tight);
+  }
+  .sm .name {
+    padding: var(--s-1) 1ch;
   }
   .lg {
-    font-size: var(--t-lg);
-    --notch: 11px;
+    font-size: var(--fs-lg);
   }
-  .lg .label {
-    padding: 0.55em 1em;
-    font-weight: 700;
-    letter-spacing: -0.015em;
+  .lg .name {
+    padding: var(--s-3) 2ch;
+    font-weight: var(--fw-heavy);
+    letter-spacing: var(--tracking-title);
+  }
+  .lg .stub {
+    padding: 0 1.5ch;
   }
 </style>

@@ -1,61 +1,58 @@
 <script lang="ts">
   import "#lib/styles.css";
+  import { page } from "$app/state";
+  import ThemeToggle from "#lib/components/ThemeToggle.svelte";
   let { data, children } = $props();
 </script>
 
-<header class="wrap top">
-  <a class="brand" href="/">
-    <svg viewBox="0 0 32 20" width="32" height="20" aria-hidden="true">
-      <rect x="0" y="0" width="32" height="20" rx="2" fill="var(--ticket)" />
-      <circle cx="22" cy="0" r="2.6" fill="var(--paper)" />
-      <circle cx="22" cy="20" r="2.6" fill="var(--paper)" />
-      <line x1="22" y1="4" x2="22" y2="16" stroke="var(--ticket-ink)" stroke-width="1" stroke-dasharray="1.5 1.5" />
-    </svg>
-    VRF Hat
-  </a>
-  <nav>
-    {#if data.user}
-      <a href="/new">New raffle</a>
-      <form method="POST" action="/logout">
-        <button class="quiet" type="submit">Sign out</button>
-      </form>
-    {:else}
-      <a href="/login">Sign in</a>
-    {/if}
-  </nav>
-</header>
+<a class="skip-link" href="#main">Skip to content</a>
 
-<main>
+<div class="shell">
+  <header class="masthead">
+    <a class="wordmark" href="/">VRF Hat</a>
+    <nav aria-label="Main">
+      {#if data.user}
+        <a href="/new" aria-current={page.url.pathname === "/new" ? "page" : undefined}>New raffle</a>
+        <form method="POST" action="/logout">
+          <button class="btn ghost small" type="submit">Sign out</button>
+        </form>
+      {:else}
+        <a href="/login" aria-current={page.url.pathname === "/login" ? "page" : undefined}>Sign in</a>
+      {/if}
+    </nav>
+  </header>
+</div>
+
+<main id="main">
   {@render children()}
 </main>
 
+<div class="shell">
+  <footer class="foot">
+    <p class="meta small">Draws use Chainlink VRF on a public chain. Every result can be checked.</p>
+    <ThemeToggle />
+  </footer>
+</div>
+
 <style>
-  .top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: 1.25rem;
-    padding-bottom: 1.25rem;
-  }
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    font-weight: 700;
-    font-size: var(--t-md);
-    color: var(--ink);
-    text-decoration: none;
-    letter-spacing: -0.02em;
+  .shell {
+    max-width: 84rem;
+    margin-inline: auto;
+    padding-inline: var(--gutter);
   }
   nav {
-    display: flex;
     align-items: center;
-    gap: 1.25rem;
   }
   nav form {
-    margin: 0;
+    display: contents;
   }
-  main {
-    padding-bottom: 5rem;
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-2) var(--gutter);
+    padding: var(--s-3) 0 var(--lh);
+    border-top: var(--double-w) double var(--rule);
   }
 </style>

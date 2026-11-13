@@ -97,101 +97,110 @@
 
 <svelte:head><title>Contract admin | VRF Hat</title></svelte:head>
 
-<div class="wrap">
-  <h1>Contract admin</h1>
-  <p class="muted">
-    The raffle contract's owner can change who draws. Your wallet signs these changes directly; this
-    site never sees your key.
-  </p>
+<div class="page reading">
+  <header class="page-head">
+    <h1>Contract admin</h1>
+    <p class="lede">
+      The raffle contract's owner can change who draws. Your wallet signs these changes directly; this
+      site never sees your key.
+    </p>
+  </header>
 
   {#if !contract}
-    <p class="error">No contract is configured (PUBLIC_RAFFLE_CONTRACT is empty).</p>
+    <div class="state" data-tone="fail" role="alert">
+      <h3>No contract is configured</h3>
+      <p><code>PUBLIC_RAFFLE_CONTRACT</code> is empty.</p>
+    </div>
   {:else}
-    <dl class="facts">
+    <dl class="kv">
       <div>
         <dt>Contract</dt>
-        <dd class="mono"><a href={explorerLink(chain.id, "address", contract)} target="_blank" rel="noreferrer">{contract}</a></dd>
+        <dd><a href={explorerLink(chain.id, "address", contract)} target="_blank" rel="noreferrer">{contract}</a></dd>
       </div>
       <div><dt>Network</dt><dd>{chain.name}</dd></div>
-      <div><dt>Owner</dt><dd class="mono">{owner ?? "…"}</dd></div>
-      <div><dt>Drawer (app server)</dt><dd class="mono">{drawer ?? "…"}</dd></div>
-      <div><dt>Your wallet</dt><dd class="mono">{account ?? "Not connected"}</dd></div>
+      <div><dt>Owner</dt><dd>{owner ?? "Loading…"}</dd></div>
+      <div><dt>Drawer (app server)</dt><dd>{drawer ?? "Loading…"}</dd></div>
+      <div>
+        <dt>Your wallet</dt>
+        <dd>
+          {#if account}
+            {account}
+            {#if isOwner}<span class="status" data-tone="ok">owner</span>{/if}
+          {:else}
+            <span class="status" data-tone="idle">not connected</span>
+          {/if}
+        </dd>
+      </div>
     </dl>
 
-    {#if !account}
-      <button onclick={connect}>Connect MetaMask</button>
-    {:else if isOwner}
-      <p class="ok">✓ Your wallet owns this contract.</p>
-      <form
-        onsubmit={(e) => {
-          e.preventDefault();
-          if (isAddress(newDrawer)) send("Replace drawer", "setDrawer", [newDrawer]);
-          else message = { ok: false, text: "Enter a valid address." };
-        }}
-      >
-        <div class="field">
-          <label for="drawer">Replace the drawer <span class="hint">if the server key is lost or leaked</span></label>
-          <input id="drawer" type="text" bind:value={newDrawer} placeholder="0x…" autocomplete="off" />
+    <section class="section">
+      {#if !account}
+        <div class="btn-row">
+          <button class="btn primary" onclick={connect}>Connect MetaMask</button>
         </div>
-        <button class="secondary" disabled={busy !== null}>{busy === "Replace drawer" ? "Waiting for wallet…" : "Replace drawer"}</button>
-      </form>
-    {:else}
-      <section>
-        <h2>Accept ownership</h2>
-        <p>
-          If this contract was deployed with your wallet as the proposed owner, accept it here. It costs
-          a small amount of test ETH for gas.
-        </p>
-        <button disabled={busy !== null} onclick={() => send("Accept ownership", "acceptOwnership")}>
-          {busy === "Accept ownership" ? "Waiting for wallet…" : "Accept ownership"}
-        </button>
-      </section>
-    {/if}
+      {:else if isOwner}
+        <div class="section-head"><h2>Replace the drawer</h2></div>
+        <form
+          class="form"
+          onsubmit={(e) => {
+            e.preventDefault();
+            if (isAddress(newDrawer)) send("Replace drawer", "setDrawer", [newDrawer]);
+            else message = { ok: false, text: "Enter a valid address." };
+          }}
+        >
+          <div class="field">
+            <label for="drawer">New drawer address</label>
+            <input
+              class="input"
+              id="drawer"
+              type="text"
+              bind:value={newDrawer}
+              placeholder="0x…"
+              autocomplete="off"
+              aria-describedby="drawer-hint"
+            />
+            <p class="hint" id="drawer-hint">Use this if the server key is lost or leaked.</p>
+          </div>
+          <div class="btn-row">
+            <button class="btn danger" disabled={busy !== null}>
+              {busy === "Replace drawer" ? "Waiting for wallet…" : "Replace drawer"}
+            </button>
+          </div>
+        </form>
+      {:else}
+        <div class="section-head"><h2>Accept ownership</h2></div>
+        <div class="flow">
+          <p class="prose">
+            If this contract was deployed with your wallet as the proposed owner, accept it here. It costs a
+            small amount of test ETH for gas.
+          </p>
+          <div class="btn-row">
+            <button class="btn primary" disabled={busy !== null} onclick={() => send("Accept ownership", "acceptOwnership")}>
+              {busy === "Accept ownership" ? "Waiting for wallet…" : "Accept ownership"}
+            </button>
+          </div>
+        </div>
+      {/if}
 
-    {#if message}
-      <p class={message.ok ? "ok" : "error"} role="status">
-        {message.text}
-        {#if message.tx}<a href={message.tx} target="_blank" rel="noreferrer">View transaction</a>{/if}
-      </p>
-    {/if}
+      {#if message}
+        <p class="notice result" data-tone={message.ok ? "ok" : "fail"} role="status">
+          <span class="status" data-tone={message.ok ? "ok" : "fail"}>{message.ok ? "done" : "failed"}</span>
+          <span>{message.text}</span>
+          {#if message.tx}<span class="notice-actions"><a href={message.tx} target="_blank" rel="noreferrer">View transaction</a></span>{/if}
+        </p>
+      {/if}
+    </section>
   {/if}
 </div>
 
 <style>
-  .wrap {
-    padding-top: 2rem;
+  .form {
+    max-width: 60ch;
   }
-  .facts {
-    display: grid;
-    gap: 0.5rem;
-    margin: 1.5rem 0 2rem;
-    padding: 1rem 1.25rem;
-    background: var(--surface);
-    border-radius: 4px;
+  .result {
+    margin-top: var(--lh);
   }
-  .facts div {
-    display: grid;
-    grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
-    gap: 0.75rem;
-  }
-  .facts dt {
-    color: var(--ink-soft);
-  }
-  .facts dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-  @media (max-width: 560px) {
-    .facts div {
-      grid-template-columns: 1fr;
-      gap: 0;
-    }
-  }
-  .ok {
-    color: var(--pass);
-    font-weight: 600;
-  }
-  form {
-    max-width: 32rem;
+  .kv .status {
+    margin-left: 1ch;
   }
 </style>
