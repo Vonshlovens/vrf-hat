@@ -10,4 +10,12 @@
   },
   "workers_dev": true,
   "preview_urls": true,
+  "observability": { "enabled": true },
+  // Non-secret settings. Secrets (DATABASE_URL, BETTER_AUTH_SECRET,
+  // DRAWER_PRIVATE_KEY, ...) are set with `wrangler secret put`.
+  "vars": {
+    "ORIGIN": "https://vrf-hat.ericthered005.workers.dev",
+    "PUBLIC_CHAIN_ID": "84532",
+    "PUBLIC_RAFFLE_CONTRACT": "0x9f64ac57f76fe348e8c240478769b89986e4dbf8",
+  },
 }
