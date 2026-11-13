@@ -21,6 +21,6 @@
     "PUBLIC_RAFFLE_CONTRACT": "0x9f64ac57f76fe348e8c240478769b89986e4dbf8",
     "GITHUB_CLIENT_ID": "Ov23ctLLulKJJDB1Ibrm",
     // Used once RESEND_API_KEY is set; until then magic links go to the logs.
-    "EMAIL_FROM": "VRF Hat <hat@ericevans.dev>",
+    "EMAIL_FROM": "VRF Hat <hat@mail.ericevans.dev>",
   },
 }
