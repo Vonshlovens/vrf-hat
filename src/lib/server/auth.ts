@@ -27,7 +27,13 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg" }),
   socialProviders: { ...provider("github"), ...provider("google"), ...provider("discord") },
   plugins: [
-    magicLink({ sendMagicLink: ({ email, url }) => sendMagicLinkEmail(email, url) }),
+    magicLink({
+      // Email a link to a confirm page instead of the verify endpoint itself.
+      // Mail scanners (e.g. Outlook Safe Links) open links before the person
+      // does, which would use up the one-time token; they don't click buttons.
+      sendMagicLink: ({ email, url }) =>
+        sendMagicLinkEmail(email, `${env.ORIGIN}/login/confirm${new URL(url).search}`),
+    }),
     sveltekitCookies(getRequestEvent), // must be last
   ],
 });
