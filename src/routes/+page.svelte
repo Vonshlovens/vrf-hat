@@ -30,7 +30,7 @@
     </table>
   {:else}
     <section class="hero">
-      <h1>A hat anyone can check.</h1>
+      <h1>A hat anyone can <mark>check</mark>.</h1>
       <div class="btn-row">
         <a class="btn primary" href={data.user ? "/new" : "/login?next=/new"}>Start a raffle</a>
         <a href="/how">How it works</a>

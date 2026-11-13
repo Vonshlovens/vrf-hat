@@ -151,7 +151,7 @@
             <th scope="row">{e.label}</th>
             <td class="w-min">
               <span class="tags">
-                {#if e.won}<span class="status" data-tone="ok">winner</span>{/if}
+                {#if e.won}<span class="status" data-tone="ticket">winner</span>{/if}
                 {#if e.mine}<span class="status" data-tone="mark">you</span>{/if}
               </span>
             </td>

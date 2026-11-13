@@ -9,7 +9,13 @@
 
 <div class="shell">
   <header class="masthead">
-    <a class="wordmark" href="/">VRF Hat</a>
+    <a class="wordmark" href="/">
+      <svg viewBox="0 0 28 16" width="28" height="16" aria-hidden="true">
+        <rect width="28" height="16" fill="var(--ticket)" />
+        <path d="M19 2v12" stroke="var(--ticket-ink)" stroke-width="1.5" stroke-dasharray="2 2" />
+      </svg>
+      VRF Hat
+    </a>
     <nav aria-label="Main">
       {#if data.user}
         <a href="/new" aria-current={page.url.pathname === "/new" ? "page" : undefined}>New raffle</a>
@@ -39,6 +45,11 @@
     max-width: 84rem;
     margin-inline: auto;
     padding-inline: var(--gutter);
+  }
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 1ch;
   }
   nav {
     align-items: center;
