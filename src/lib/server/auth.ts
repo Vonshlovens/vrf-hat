@@ -7,17 +7,19 @@ import { getRequestEvent } from "$app/server";
 import { db } from "./db/index.ts";
 import { sendMagicLinkEmail } from "./email.ts";
 
-/** OAuth providers whose credentials are configured. */
-export const enabledProviders = (["github", "google", "discord"] as const).filter(
-  (p) => env[`${p.toUpperCase() as Uppercase<typeof p>}_CLIENT_ID`],
-);
+type ProviderId = "github" | "google" | "discord";
 
-function provider(id: (typeof enabledProviders)[number]) {
+function provider(id: ProviderId) {
   const key = id.toUpperCase() as Uppercase<typeof id>;
   const clientId = env[`${key}_CLIENT_ID`];
   const clientSecret = env[`${key}_CLIENT_SECRET`];
   return clientId && clientSecret ? { [id]: { clientId, clientSecret } } : {};
 }
+
+/** OAuth providers with both an ID and a secret configured. */
+export const enabledProviders = (["github", "google", "discord"] as const).filter(
+  (p) => Object.keys(provider(p)).length > 0,
+);
 
 export const auth = betterAuth({
   baseURL: env.ORIGIN,
