@@ -1,9 +1,11 @@
 /*
  * App layer on top of the von design system (src/lib/von, a snapshot of
- * ~/von/design-system). Declares no colours: every colour is a von token.
+ * ~/von/design-system). Colours come from palette.css, which re-points
+ * von's roles at VRF Hat's own palette.
  */
 @import "./von/fonts/fonts.css";
 @import "./von/tokens.css";
+@import "./palette.css";
 @import "./von/von.css";
 
 /* Page rhythm: one line above the title, a line between blocks. */

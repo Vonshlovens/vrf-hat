@@ -14,13 +14,12 @@
 <div class="page narrow">
   <header class="page-head">
     <h1>Sign in</h1>
-    <p class="lede">You need an account to run a raffle or put your own name in one.</p>
   </header>
 
   {#if form?.sent}
     <div class="state" role="status">
       <h3><span class="status" data-tone="ok">sent</span> Check your email</h3>
-      <p>We sent a sign-in link to <strong>{form.sent}</strong>. It works once and expires in 5 minutes.</p>
+      <p>Link sent to <strong>{form.sent}</strong>. It works once, for 5 minutes.</p>
     </div>
   {:else}
     {#if otherError}<p class="notice" data-tone="fail" role="alert">{otherError}</p>{/if}

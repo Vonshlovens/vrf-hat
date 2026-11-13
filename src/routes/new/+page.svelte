@@ -44,8 +44,7 @@
     <label class="check">
       <input name="selfEntry" type="checkbox" checked={form ? form.selfEntry : true} />
       <span>
-        Let people enter themselves
-        <span class="hint">They sign in and add their own name. You can always add names yourself.</span>
+        People can add their own name
       </span>
     </label>
     {#if form?.error}<p class="field-error" role="alert">{form.error}</p>{/if}

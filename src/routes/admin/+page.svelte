@@ -100,10 +100,6 @@
 <div class="page reading">
   <header class="page-head">
     <h1>Contract admin</h1>
-    <p class="lede">
-      The raffle contract's owner can change who draws. Your wallet signs these changes directly; this
-      site never sees your key.
-    </p>
   </header>
 
   {#if !contract}
@@ -137,6 +133,7 @@
       {#if !account}
         <div class="btn-row">
           <button class="btn primary" onclick={connect}>Connect MetaMask</button>
+          <span class="hint">Your wallet signs; this site never sees your key.</span>
         </div>
       {:else if isOwner}
         <div class="section-head"><h2>Replace the drawer</h2></div>
@@ -159,7 +156,7 @@
               autocomplete="off"
               aria-describedby="drawer-hint"
             />
-            <p class="hint" id="drawer-hint">Use this if the server key is lost or leaked.</p>
+            <p class="hint" id="drawer-hint">If the server key is lost or leaked.</p>
           </div>
           <div class="btn-row">
             <button class="btn danger" disabled={busy !== null}>
@@ -169,16 +166,11 @@
         </form>
       {:else}
         <div class="section-head"><h2>Accept ownership</h2></div>
-        <div class="flow">
-          <p class="prose">
-            If this contract was deployed with your wallet as the proposed owner, accept it here. It costs a
-            small amount of test ETH for gas.
-          </p>
-          <div class="btn-row">
+        <div class="btn-row">
             <button class="btn primary" disabled={busy !== null} onclick={() => send("Accept ownership", "acceptOwnership")}>
               {busy === "Accept ownership" ? "Waiting for wallet…" : "Accept ownership"}
             </button>
-          </div>
+            <span class="hint">For the proposed owner. Costs a little test ETH.</span>
         </div>
       {/if}
 

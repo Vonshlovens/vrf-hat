@@ -1,0 +1,100 @@
+/*
+ * VRF Hat's own palette, mapped onto von's colour roles. Loaded after
+ * von/tokens.css so the snapshot stays untouched. Cobalt takes the mark's
+ * job (focus, selection, links); ticket yellow is for drawn tickets only.
+ * Keep the two dark blocks identical.
+ */
+:root {
+  --paper: #eef0f7;
+  --paper-sunk: #e1e4ef;
+  --paper-raised: #ffffff;
+  --ink: #1f2140;
+  --ink-2: #3d4063;
+  --ink-3: #565a7c;
+  --line: #c9cde0;
+  --line-strong: #7d81a3;
+  --rule: var(--ink);
+
+  --mark: #3a5bd9;
+  --mark-fill: #3a5bd9;
+  --on-mark: #ffffff;
+  --mark-wash: #dfe5fb;
+  --link: #3a5bd9;
+  --link-hover: #1f2140;
+  --focus: #3a5bd9;
+
+  --ticket: #f6c945;
+  --ticket-ink: #3b2c00;
+
+  --ok: #17704a;    --ok-wash: #d7ebe1;   --ok-line: #82b89c;
+  --run: #1d5d78;   --run-wash: #d6e2ee;  --run-line: #86a9c4;
+  --warn: #765300;  --warn-wash: #f5e8bd; --warn-line: #cfae55;
+  --fail: #ad2e27;  --fail-wash: #f6dedb; --fail-line: #d99790;
+
+  --scrim: rgb(31 33 64 / 0.42);
+  --shadow-pop: 0 14px 32px -18px rgb(31 33 64 / 0.45), 0 2px 6px -2px rgb(31 33 64 / 0.12);
+}
+
+:root[data-theme="dark"] {
+  --paper: #15172b;
+  --paper-sunk: #101223;
+  --paper-raised: #1f2240;
+  --ink: #e6e8f5;
+  --ink-2: #c4c7e0;
+  --ink-3: #a3a7c7;
+  --line: #34385a;
+  --line-strong: #6b7099;
+  --rule: var(--ink);
+
+  --mark: #8ea4ff;
+  --mark-fill: #3a5bd9;
+  --on-mark: #ffffff;
+  --mark-wash: #262d57;
+  --link: #8ea4ff;
+  --link-hover: #e6e8f5;
+  --focus: #8ea4ff;
+
+  --ticket: #f2c23a;
+  --ticket-ink: #2e2200;
+
+  --ok: #4cc98f;    --ok-wash: #14302a;   --ok-line: #2f6b52;
+  --run: #7cc2dc;   --run-wash: #172a3d;  --run-line: #355e78;
+  --warn: #e5c066;  --warn-wash: #2e2a1c; --warn-line: #6f5a2a;
+  --fail: #ff7d70;  --fail-wash: #3a1d24; --fail-line: #7a3a40;
+
+  --scrim: rgb(8 9 20 / 0.66);
+  --shadow-pop: 0 18px 40px -16px rgb(0 0 0 / 0.7), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #15172b;
+    --paper-sunk: #101223;
+    --paper-raised: #1f2240;
+    --ink: #e6e8f5;
+    --ink-2: #c4c7e0;
+    --ink-3: #a3a7c7;
+    --line: #34385a;
+    --line-strong: #6b7099;
+    --rule: var(--ink);
+
+    --mark: #8ea4ff;
+    --mark-fill: #3a5bd9;
+    --on-mark: #ffffff;
+    --mark-wash: #262d57;
+    --link: #8ea4ff;
+    --link-hover: #e6e8f5;
+    --focus: #8ea4ff;
+
+    --ticket: #f2c23a;
+    --ticket-ink: #2e2200;
+
+    --ok: #4cc98f;    --ok-wash: #14302a;   --ok-line: #2f6b52;
+    --run: #7cc2dc;   --run-wash: #172a3d;  --run-line: #355e78;
+    --warn: #e5c066;  --warn-wash: #2e2a1c; --warn-line: #6f5a2a;
+    --fail: #ff7d70;  --fail-wash: #3a1d24; --fail-line: #7a3a40;
+
+    --scrim: rgb(8 9 20 / 0.66);
+    --shadow-pop: 0 18px 40px -16px rgb(0 0 0 / 0.7), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+  }
+}

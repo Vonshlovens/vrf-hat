@@ -23,10 +23,11 @@
     color: var(--ink);
     line-height: var(--lh);
   }
-  /* A drawn ticket is inverse ink: the strongest fill the system allows short of the mark. */
+  /* A drawn ticket is ticket yellow. */
   .drawn {
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--ticket);
+    border-color: var(--ticket);
+    color: var(--ticket-ink);
   }
   .name {
     min-width: 0;

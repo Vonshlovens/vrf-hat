@@ -14,7 +14,7 @@
   const short = $derived(Math.max(0, raffle.winnerCount - data.entries.length));
   const hostOpen = $derived(data.isHost && raffle.status === "open");
 
-  const statusWord = { open: "taking entries", requested: "drawing", drawn: "drawn" } as const;
+  const statusWord = { open: "open", requested: "drawing", drawn: "drawn" } as const;
   const statusTone = { open: "idle", requested: "run", drawn: "ok" } as const;
 
   // While Chainlink works, poll until the random word lands.
@@ -43,177 +43,131 @@
   </header>
 
   <div class="summary">
-    <dl class="facts">
-      <div>
-        <dt>Status</dt>
-        <dd>
-          <span class="status" data-tone={statusTone[raffle.status]}>
-            {#if raffle.status === "requested"}<span class="live" aria-hidden="true"></span>{/if}{statusWord[raffle.status]}
-          </span>
-        </dd>
-      </div>
-      <div><dt>Winners</dt><dd>{raffle.winnerCount}</dd></div>
-      <div><dt>Entries</dt><dd>{data.entries.length}</dd></div>
-    </dl>
-    <div class="btn-row">
-      {#if raffle.status === "open"}
-        <button class="btn small" onclick={copyLink}>{copied ? "Link copied" : "Copy link"}</button>
-      {:else}
-        <a class="btn small" href="/r/{raffle.slug}/verify">Verify the draw</a>
-      {/if}
-    </div>
+    <p class="cluster">
+      <span class="status" data-tone={statusTone[raffle.status]}>
+        {#if raffle.status === "requested"}<span class="live" aria-hidden="true"></span>{/if}{statusWord[raffle.status]}
+      </span>
+      <span class="meta">
+        {raffle.winnerCount}
+        {raffle.winnerCount === 1 ? "winner" : "winners"} · {data.entries.length}
+        {data.entries.length === 1 ? "entry" : "entries"}
+      </span>
+    </p>
+    {#if raffle.status === "open"}
+      <button class="btn small" onclick={copyLink}>{copied ? "Link copied" : "Copy link"}</button>
+    {:else}
+      <a class="btn small" href="/r/{raffle.slug}/verify">Verify</a>
+    {/if}
   </div>
 
   {#if raffle.status === "drawn" && data.winners}
-    <section class="section" aria-live="polite">
-      <div class="section-head">
-        <h2>{data.winners.length === 1 ? "The winner" : "The winners"}</h2>
-        <p>Picked by Chainlink VRF</p>
-      </div>
-      <ol class="winners">
-        {#each data.winners as w, i (w.number)}
-          <li style="--i: {i}"><Ticket size="lg" number={pad(w.number)} label={w.label} /></li>
-        {/each}
-      </ol>
-      <div class="btn-row">
-        <a class="btn primary" href="/r/{raffle.slug}/verify">Check this draw yourself</a>
-      </div>
-    </section>
+    <ol class="winners" aria-label={data.winners.length === 1 ? "Winner" : "Winners"} aria-live="polite">
+      {#each data.winners as w, i (w.number)}
+        <li style="--i: {i}"><Ticket size="lg" number={pad(w.number)} label={w.label} /></li>
+      {/each}
+    </ol>
   {:else if raffle.status === "requested"}
-    <div class="notice wait" data-tone="run" aria-live="polite">
-      <span class="status" data-tone="run"><span class="live" aria-hidden="true"></span>waiting for Chainlink</span>
-      <span>
-        The list is sealed on-chain and a random number has been requested. It usually arrives within a
-        minute; this page updates when it does.
-      </span>
-      <span class="notice-actions"><a href="/r/{raffle.slug}/verify">Follow along</a></span>
-    </div>
+    <p class="notice block" data-tone="run" aria-live="polite">
+      Waiting for Chainlink's number. This page updates when it arrives.
+    </p>
   {/if}
 
   {#if raffle.status === "open"}
-    <section class="enter">
+    <div class="block">
       {#if !data.user}
         {#if raffle.selfEntry}
           <a class="btn primary" href="/login?next=/r/{raffle.slug}">Sign in to enter</a>
         {/if}
       {:else if data.entered}
-        <p class="notice" data-tone="ok"><span class="status" data-tone="ok">entered</span> You're in. Good luck.</p>
+        <p><span class="status" data-tone="ok">entered</span></p>
       {:else if raffle.selfEntry || data.isHost}
         <form method="POST" action="?/enter" use:enhance class="inline">
           <div class="field grow">
-            <label for="label">Your name in the hat</label>
+            <label for="label">Your name</label>
             <input class="input" id="label" name="label" type="text" maxlength="64" value={data.user.name} />
           </div>
-          <button class="btn primary">Enter the raffle</button>
+          <button class="btn primary">Enter</button>
         </form>
       {/if}
-    </section>
+    </div>
   {/if}
 
-  {#if form?.error}<p class="notice error" data-tone="fail" role="alert">{form.error}</p>{/if}
+  {#if form?.error}<p class="notice block" data-tone="fail" role="alert">{form.error}</p>{/if}
 
   {#if hostOpen}
-    <section class="section">
-      <div class="section-head">
-        <h2>Host controls</h2>
-        <p>Only you see this</p>
-      </div>
-      <div class="split">
-        <form method="POST" action="?/addNames" use:enhance class="form">
-          <div class="field">
-            <label for="names">Add names</label>
-            <textarea class="textarea" id="names" name="names" rows="4" aria-describedby="names-hint"></textarea>
-            <p class="hint" id="names-hint">One per line, or separated by commas.</p>
-          </div>
+    <div class="block host">
+      <form method="POST" action="?/addNames" use:enhance class="form">
+        <div class="field">
+          <label for="names">Add names</label>
+          <textarea class="textarea" id="names" name="names" rows="3" placeholder="One per line, or comma-separated"
+          ></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn">Add</button>
+          {#if form?.added}<span class="status" data-tone="ok">added {form.added}</span>{/if}
+        </div>
+      </form>
+
+      {#if data.drawsEnabled}
+        <form
+          method="POST"
+          action="?/draw"
+          use:enhance={() => {
+            drawing = true;
+            return async ({ update }) => {
+              await update();
+              drawing = false;
+            };
+          }}
+        >
           <div class="btn-row">
-            <button class="btn">Add to the hat</button>
-            {#if form?.added}<span class="status" data-tone="ok">added {form.added}</span>{/if}
+            <button class="btn danger" disabled={drawing || short > 0}>
+              {drawing ? "Sealing the list…" : "Draw now"}
+            </button>
+            <span class="hint">
+              {#if short > 0 && !drawing}
+                Needs {short} more {short === 1 ? "entry" : "entries"}.
+              {:else}
+                Final. Can't be undone or re-rolled.
+              {/if}
+            </span>
           </div>
         </form>
-
-        <div class="flow draw">
-          <h3>Draw the winners</h3>
-          <p class="prose small-prose">
-            Entries close and the list is sealed on the blockchain. This can't be undone, and the result
-            can't be re-rolled.
-          </p>
-          {#if data.drawsEnabled}
-            <form
-              method="POST"
-              action="?/draw"
-              use:enhance={() => {
-                drawing = true;
-                return async ({ update }) => {
-                  await update();
-                  drawing = false;
-                };
-              }}
-            >
-              <div class="btn-row">
-                <button class="btn danger" disabled={drawing || short > 0}>
-                  {drawing ? "Sealing the list…" : "Draw now"}
-                </button>
-                {#if short > 0 && !drawing}
-                  <span class="hint">Needs {short} more {short === 1 ? "entry" : "entries"} for {raffle.winnerCount} winners.</span>
-                {/if}
-              </div>
-            </form>
-          {:else}
-            <p class="notice" data-tone="warn">
-              <span class="status" data-tone="warn">unavailable</span> Draws aren't configured on this server (no contract
-              or drawer key).
-            </p>
-          {/if}
-        </div>
-      </div>
-    </section>
+      {:else}
+        <p class="hint">Draws aren't configured on this server.</p>
+      {/if}
+    </div>
   {/if}
 
-  <section class="section">
-    <div class="section-head">
-      <h2>{raffle.status === "open" ? "In the hat" : "Entries"}</h2>
-      <p>{data.entries.length} {data.entries.length === 1 ? "entry" : "entries"}</p>
-    </div>
-    {#if data.entries.length === 0}
-      <div class="state">
-        <h3>Nobody's in yet</h3>
-        <p>{data.isHost ? "Add names above, or share the link." : "Share the link to get people in."}</p>
-      </div>
-    {:else}
-      <table class="table">
-        <thead>
-          <tr>
-            <th scope="col" class="w-min">No.</th>
-            <th scope="col">Name</th>
-            <th scope="col" class="w-min"><span class="sr-only">Notes</span></th>
-            {#if hostOpen}<th scope="col" class="w-min"><span class="sr-only">Actions</span></th>{/if}
-          </tr>
-        </thead>
-        <tbody>
-          {#each data.entries as e (e.id)}
-            <tr class:is-selected={e.mine}>
-              <td data-label="No." class="id w-min">{pad(e.number)}</td>
-              <th scope="row" data-label="Name">{e.label}</th>
+  {#if data.entries.length === 0}
+    <p class="meta block">Nobody's in yet.</p>
+  {:else}
+    <table class="table block">
+      <caption class="sr-only">Entries</caption>
+      <tbody>
+        {#each data.entries as e (e.id)}
+          <tr class:is-selected={e.mine}>
+            <td class="id w-min meta">{pad(e.number)}</td>
+            <th scope="row">{e.label}</th>
+            <td class="w-min">
+              <span class="tags">
+                {#if e.won}<span class="status" data-tone="ok">winner</span>{/if}
+                {#if e.mine}<span class="status" data-tone="mark">you</span>{/if}
+              </span>
+            </td>
+            {#if hostOpen}
               <td class="w-min">
-                <span class="tags">
-                  {#if e.won}<span class="status" data-tone="ok">winner</span>{/if}
-                  {#if e.mine}<span class="status" data-tone="mark">you</span>{/if}
-                </span>
+                <form method="POST" action="?/remove" use:enhance>
+                  <input type="hidden" name="id" value={e.id} />
+                  <button class="btn ghost small" aria-label="Remove {e.label}">Remove</button>
+                </form>
               </td>
-              {#if hostOpen}
-                <td class="w-min">
-                  <form method="POST" action="?/remove" use:enhance>
-                    <input type="hidden" name="id" value={e.id} />
-                    <button class="btn ghost small" aria-label="Remove {e.label}">Remove</button>
-                  </form>
-                </td>
-              {/if}
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    {/if}
-  </section>
+            {/if}
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  {/if}
 </article>
 
 <style>
@@ -223,15 +177,20 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--s-2) var(--gutter);
+    padding-bottom: var(--s-2);
+    border-bottom: var(--rule-w) solid var(--rule);
   }
-  .summary .facts {
-    flex: 1 1 auto;
+  .summary .cluster {
+    gap: var(--s-1) 1.5ch;
+  }
+  .block {
+    margin-top: calc(var(--lh) * 1.5);
   }
 
   .winners {
     list-style: none;
     padding: 0;
-    margin-bottom: var(--lh);
+    margin-top: calc(var(--lh) * 1.5);
     display: grid;
     gap: var(--s-3);
     justify-items: start;
@@ -248,11 +207,6 @@
     }
   }
 
-  .wait,
-  .enter,
-  .error {
-    margin-top: calc(var(--lh) * 1.5);
-  }
   .inline {
     display: flex;
     flex-wrap: wrap;
@@ -263,12 +217,10 @@
     flex: 1 1 24ch;
     max-width: 48ch;
   }
-  .small-prose {
-    font-size: var(--fs-base);
-    color: var(--ink-2);
-  }
-  .draw {
-    --flow-space: var(--s-3);
+  .host {
+    display: grid;
+    gap: var(--lh);
+    max-width: 60ch;
   }
   .tags {
     display: flex;
@@ -276,5 +228,8 @@
   }
   .table td form {
     margin: 0;
+  }
+  .table tbody tr:first-child > * {
+    border-top: var(--rule-w) solid var(--rule);
   }
 </style>

@@ -19,19 +19,17 @@
   </header>
   {#if hasToken}
     <div class="flow">
-      <p class="lede">Finish signing in to VRF Hat on this device.</p>
       <form method="GET" action="/api/auth/magic-link/verify" data-sveltekit-reload>
         {#each params as [name, value] (name)}
           <input type="hidden" {name} {value} />
         {/each}
         <button class="btn primary">Sign in</button>
       </form>
-      <p class="hint">If you didn't ask to sign in, close this page. Nothing happens until you press the button.</p>
+      <p class="hint">Didn't ask to sign in? Close this page.</p>
     </div>
   {:else}
     <div class="state" data-tone="fail" role="alert">
       <h3>This sign-in link is incomplete</h3>
-      <p>Copy the whole link from the email, or request a new one.</p>
       <div class="btn-row"><a class="btn" href="/login">Get a new link</a></div>
     </div>
   {/if}

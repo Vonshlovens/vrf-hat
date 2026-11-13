@@ -74,9 +74,6 @@
         : status === "skip"
           ? { tone: "idle", word: "skipped" }
           : { tone: "run", word: running ? "checking" : "waiting" };
-  const verdictTone = $derived(
-    verdict === "pass" ? "ok" : verdict === "fail" ? "fail" : "run",
-  );
 
   onMount(() => {
     if (raffle.status !== "open") run();
@@ -89,42 +86,26 @@
   <header class="page-head">
     <a class="crumb" href="/r/{raffle.slug}">← {raffle.title}</a>
     <h1>Check this draw</h1>
-    <p class="lede">
-      Your browser is reading the blockchain directly and redoing each step of the draw. It doesn't rely
-      on anything this site says beyond where to look.
-    </p>
   </header>
 
   {#if raffle.status === "open"}
-    <div class="state">
-      <h3><span class="status" data-tone="idle">not drawn</span> Entries are still open</h3>
-      <p>Once the host draws, this page can check every step.</p>
-    </div>
+    <p class="meta">Entries are still open. Check back after the draw.</p>
   {:else}
-    <div class="notice verdict" data-tone={verdictTone} role="status" aria-live="polite">
+    <div class="verdict" role="status" aria-live="polite">
       {#if verdict === "pass"}
         <span class="status" data-tone="ok">verified</span>
-        <span>
-          <strong>All {allChecks.length} checks passed.</strong> The winners were fixed by Chainlink's number
-          and a list that was sealed before it existed.
-          {#if result?.steps.some((s) => s.status === "skip")}
-            The proof check was skipped because this draw ran on a local test chain.
-          {/if}
-        </span>
+        <span>All {allChecks.length} checks passed.</span>
       {:else if verdict === "fail"}
         <span class="status" data-tone="fail">failed</span>
-        <span>
-          <strong>Something didn't check out.</strong>
-          {result?.error ?? `${failed.length} step${failed.length === 1 ? "" : "s"} failed; see below.`}
-        </span>
+        <span>{result?.error ?? `${failed.length} step${failed.length === 1 ? "" : "s"} failed.`}</span>
       {:else if verdict === "pending"}
         <span class="status" data-tone="run"><span class="live" aria-hidden="true"></span>waiting</span>
-        <span><strong>Waiting for Chainlink.</strong> The list is sealed; the random number hasn't arrived yet.</span>
+        <span>Chainlink hasn't answered yet.</span>
       {:else}
         <span class="status" data-tone="run"><span class="live" aria-hidden="true"></span>checking</span>
-        <span>Checked {done.length} of 4 steps…</span>
+        <span class="meta">{done.length} of 4</span>
       {/if}
-      {#if !running}<span class="notice-actions"><button class="btn small" onclick={run}>Check again</button></span>{/if}
+      {#if !running}<button class="btn ghost small again" onclick={run}>Check again</button>{/if}
     </div>
 
     {#if result}
@@ -133,66 +114,70 @@
           {@const sw = stepWord(step.status)}
           <li class="link" data-state={step.status}>
             <span class="n" aria-hidden="true">{i + 1}</span>
-            <div class="body flow">
+            <div class="body">
               <div class="link-head">
-                <h2>{step.title}</h2>
+                <h2 class="h3">{step.title}</h2>
                 <span class="status" data-tone={sw.tone}>
                   {#if sw.tone === "run"}<span class="live" aria-hidden="true"></span>{/if}{sw.word}
                 </span>
               </div>
-              <p class="prose summary">{step.summary}</p>
-              {#if step.note}<p class="notice">{step.note}</p>{/if}
+              {#if step.note}<p class="hint note">{step.note}</p>{/if}
 
-              {#if step.checks.length}
-                <ul class="plan">
-                  {#each step.checks as c (c.label)}
-                    <li>
-                      <span class="status" data-tone={c.ok ? "ok" : "fail"}>{c.ok ? "ok" : "failed"}</span>
-                      <span class="plan-text">{c.label}</span>
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
+              {#if step.checks.length || step.facts.length}
+                <details open={step.status === "fail"}>
+                  <summary class="small">Details</summary>
+                  <div class="flow detail">
+                    {#if step.checks.length}
+                      <ul class="plan">
+                        {#each step.checks as c (c.label)}
+                          <li>
+                            <span class="status" data-tone={c.ok ? "ok" : "fail"}>{c.ok ? "ok" : "failed"}</span>
+                            <span class="plan-text">{c.label}</span>
+                          </li>
+                        {/each}
+                      </ul>
+                    {/if}
 
-              {#if step.facts.length}
-                <dl class="kv">
-                  {#each step.facts as f (f.label)}
-                    <div>
-                      <dt>{f.label}</dt>
-                      <dd>
-                        {#if f.href}<a href={f.href} target="_blank" rel="noreferrer">{f.value}</a>{:else}{f.value}{/if}
-                      </dd>
-                    </div>
-                  {/each}
-                </dl>
-              {/if}
+                    {#if step.facts.length}
+                      <dl class="kv">
+                        {#each step.facts as f (f.label)}
+                          <div>
+                            <dt>{f.label}</dt>
+                            <dd>
+                              {#if f.href}<a href={f.href} target="_blank" rel="noreferrer">{f.value}</a>{:else}{f.value}{/if}
+                            </dd>
+                          </div>
+                        {/each}
+                      </dl>
+                    {/if}
 
-              {#if step.id === "winners" && result.shuffle.length}
-                <div class="table-wrap">
-                  <table class="table reflow">
-                    <caption>The shuffle, step by step</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col" class="num w-min">Step</th>
-                        <th scope="col">Hash of (number, step)</th>
-                        <th scope="col">Mod</th>
-                        <th scope="col">Winner</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {#each result.shuffle as s (s.step)}
-                        <tr>
-                          <td data-label="Step" class="num w-min">{s.step + 1}</td>
-                          <td data-label="Hash" class="id">{s.hash.slice(0, 10)}…</td>
-                          <td data-label="Mod">{s.step} + h mod {s.range} = {s.j}</td>
-                          <td data-label="Winner">
-                            <strong>{s.label}</strong> <span class="meta">No. {pad(s.position + 1)}</span>
-                          </td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </div>
+                    {#if step.id === "winners" && result.shuffle.length}
+                      <div class="table-wrap">
+                        <table class="table">
+                          <caption>The shuffle</caption>
+                          <thead>
+                            <tr>
+                              <th scope="col" class="num w-min">Step</th>
+                              <th scope="col">Hash</th>
+                              <th scope="col">Mod</th>
+                              <th scope="col">Winner</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {#each result.shuffle as s (s.step)}
+                              <tr>
+                                <td class="num w-min">{s.step + 1}</td>
+                                <td class="id">{s.hash.slice(0, 10)}…</td>
+                                <td>{s.step} + h mod {s.range} = {s.j}</td>
+                                <td><strong>{s.label}</strong> <span class="meta">No. {pad(s.position + 1)}</span></td>
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                    {/if}
+                  </div>
+                </details>
               {/if}
             </div>
           </li>
@@ -200,101 +185,74 @@
       </ol>
 
       {#if result.entrants.length}
-        <section class="section">
-          <div class="section-head">
-            <h2>Find your entry</h2>
-            <p>{result.entrants.length} sealed</p>
+        <section class="find">
+          <div class="field search">
+            <label for="q">Find an entry</label>
+            <input class="input" id="q" type="search" bind:value={query} placeholder="Name or ticket" autocomplete="off" />
           </div>
-          <div class="flow">
-            <p class="lede">
-              Search for a name or ticket, then ask the contract itself whether it was in the sealed list.
+          {#if matches.length}
+            <table class="table">
+              <tbody>
+                {#each matches as m (m.index)}
+                  <tr>
+                    <td class="id w-min meta">{pad(m.index + 1)}</td>
+                    <th scope="row">{m.label}</th>
+                    <td class="w-min"><button class="btn small" onclick={() => checkEntry(m.index)}>Check on-chain</button></td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {:else if query.trim()}
+            <p class="meta">No match.</p>
+          {/if}
+          {#if lookup}
+            <p class="lookup" role="status">
+              {#if lookup.ok === null}
+                <span class="status" data-tone="run"><span class="live" aria-hidden="true"></span>asking</span>
+                {lookup.label}
+              {:else if lookup.ok}
+                <span class="status" data-tone="ok">in the sealed list</span>
+                {lookup.label} <span class="meta">({lookup.proof.length}-hash proof)</span>
+              {:else}
+                <span class="status" data-tone="fail">not in the sealed list</span>
+                {lookup.label}
+              {/if}
             </p>
-            <div class="field search">
-              <label for="q">Name or ticket</label>
-              <input class="input" id="q" type="search" bind:value={query} autocomplete="off" />
-            </div>
-            {#if matches.length}
-              <table class="table">
-                <tbody>
-                  {#each matches as m (m.index)}
-                    <tr>
-                      <td class="id w-min">{pad(m.index + 1)}</td>
-                      <th scope="row">{m.label}</th>
-                      <td class="w-min"><button class="btn small" onclick={() => checkEntry(m.index)}>Check on-chain</button></td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            {:else if query.trim()}
-              <p class="meta">No entry matches "{query}".</p>
-            {/if}
-            {#if lookup}
-              <p class="notice" data-tone={lookup.ok === null ? "run" : lookup.ok ? "ok" : "fail"} role="status">
-                {#if lookup.ok === null}
-                  <span class="status" data-tone="run"><span class="live" aria-hidden="true"></span>asking</span>
-                  <span>Asking the contract about {lookup.label}…</span>
-                {:else if lookup.ok}
-                  <span class="status" data-tone="ok">confirmed</span>
-                  <span>
-                    The contract confirms <strong>{lookup.label}</strong> was in the sealed list
-                    ({lookup.proof.length} hashes in the proof).
-                  </span>
-                {:else}
-                  <span class="status" data-tone="fail">not found</span>
-                  <span>The contract says this entry was not in the sealed list.</span>
-                {/if}
-              </p>
-            {/if}
-          </div>
+          {/if}
         </section>
       {/if}
 
-      <section class="section">
-        <div class="section-head">
-          <h2>Check it without this site</h2>
-        </div>
-        <ol class="prose diy">
-          <li>
-            Download <a href="/r/{raffle.slug}/entrants.json">the sealed entry list</a>. Each entry's leaf is
-            <code>keccak256(keccak256(abi.encode(uint32 index, bytes16 ticket, string label)))</code>; pairs
-            are hashed in sorted order, and an unpaired node moves up unchanged.
-          </li>
-          <li>
-            On the contract <code>{raffle.contract}</code>, call <code>getDraw({raffle.raffleKey})</code>
-            and compare <code>entrantsRoot</code> with your rebuilt root. The raffle key is
-            <code>keccak256("vrf-hat:raffle:{raffle.raffleId}")</code>.
-          </li>
-          <li>
-            Call <code>pickWinners(randomWord, entrantCount, winnerCount)</code> and look up those positions
-            in the list. The source is in <code>contracts/RaffleDraw.sol</code>.
-          </li>
-        </ol>
-        <hr />
-      </section>
+      <p class="more small">
+        <a href="/r/{raffle.slug}/verify/by-hand">Check it by hand</a>
+        <a href="/how#verify">What's checked</a>
+      </p>
     {/if}
   {/if}
 </article>
 
 <style>
   .verdict {
-    font-size: var(--fs-base);
-    line-height: var(--lh);
-    padding: var(--s-3) var(--gutter);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-1) 1.5ch;
+    padding-bottom: var(--s-2);
+  }
+  .again {
+    margin-left: auto;
   }
 
-  /* The chain of custody: numbered links ruled in ink, each with its state in words. */
   .chain {
     list-style: none;
     padding: 0;
-    margin-top: calc(var(--lh) * 1.5);
     border-top: var(--rule-w) solid var(--rule);
     border-bottom: var(--rule-w) solid var(--rule);
   }
   .link {
     display: grid;
-    grid-template-columns: 4ch minmax(0, 1fr);
-    gap: 0 var(--gutter);
-    padding: var(--lh) 0;
+    grid-template-columns: 3ch minmax(0, 1fr);
+    gap: 0 1.5ch;
+    padding: var(--s-3) 0;
   }
   .link + .link {
     border-top: var(--hair-w) solid var(--line);
@@ -303,21 +261,12 @@
     background: var(--fail-wash);
   }
   .n {
-    font-size: var(--fs-lg);
-    font-weight: var(--fw-heavy);
-    line-height: var(--lh);
+    font-weight: var(--fw-bold);
     text-align: right;
     color: var(--ink-3);
   }
-  .link[data-state="pass"] .n {
-    color: var(--ink);
-  }
-  .link[data-state="fail"] .n {
-    color: var(--fail);
-  }
   .body {
     min-width: 0;
-    --flow-space: var(--s-3);
     padding-right: var(--cell-x);
   }
   .link-head {
@@ -327,29 +276,45 @@
     justify-content: space-between;
     gap: var(--s-1) var(--gutter);
   }
-  .summary {
-    color: var(--ink-2);
+  .note {
+    margin-top: var(--s-1);
   }
-  .plan {
-    border-top: var(--hair-w) solid var(--line);
-    border-bottom: var(--hair-w) solid var(--line);
+  details {
+    margin-top: var(--s-1);
+  }
+  summary {
+    width: fit-content;
+    cursor: pointer;
+    color: var(--ink-3);
+  }
+  summary:hover {
+    color: var(--ink);
+  }
+  .detail {
+    --flow-space: var(--s-3);
+    margin-top: var(--s-2);
   }
   .plan li {
     padding-inline: 0;
   }
+
+  .find {
+    display: grid;
+    gap: var(--s-3);
+    margin-top: calc(var(--lh) * 2);
+  }
   .search {
     max-width: 48ch;
   }
-  .diy {
-    padding-left: 3ch;
+  .lookup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1) 1ch;
   }
-  .diy li + li {
-    margin-top: var(--s-3);
-  }
-  @media (max-width: 40rem) {
-    .link {
-      grid-template-columns: 2ch minmax(0, 1fr);
-      gap: 0 1.5ch;
-    }
+  .more {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--gutter);
+    margin-top: calc(var(--lh) * 2);
   }
 </style>

@@ -29,7 +29,7 @@
 
 <div class="shell">
   <footer class="foot">
-    <p class="meta small">Draws use Chainlink VRF on a public chain. Every result can be checked.</p>
+    <a class="small" href="/how" aria-current={page.url.pathname === "/how" ? "page" : undefined}>How it works</a>
     <ThemeToggle />
   </footer>
 </div>
