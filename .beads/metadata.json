@@ -1,0 +1,10 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_server_host": "beads",
+  "dolt_server_port": 3306,
+  "dolt_server_user": "beads_bd_writer",
+  "dolt_database": "vrf_hat",
+  "project_id": "7eedb982-f389-457e-a623-29a483e8c491"
+}
