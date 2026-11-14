@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
-vp staged
+# Vite+ formats and lints staged files. bd replaced core.hooksPath (.vite-hooks),
+# whose wrapper put node_modules/.bin on PATH, so do that here.
+PATH="$(git rev-parse --show-toplevel)/node_modules/.bin:$PATH" vp staged || exit $?
 
 # --- BEGIN BEADS INTEGRATION v1.1.0 ---
 # This section is managed by beads. Do not remove these markers.
