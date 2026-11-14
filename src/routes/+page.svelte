@@ -15,13 +15,19 @@
     </header>
     <table class="table rows">
       <tbody>
-        {#each data.hosted as { raffle, entrants } (raffle.id)}
+        {#each data.hosted as { raffle, tickets } (raffle.id)}
           <tr>
             <th scope="row"><a class="row-link" href="/r/{raffle.slug}">{raffle.title}</a></th>
-            <td class="num w-min">{entrants}</td>
+            <td class="w-min meta kind">
+              {raffle.mode === "eliminate" ? "elimination" : "winners"}{raffle.recurring ? ", repeating" : ""}
+            </td>
+            <td class="num w-min">{tickets}</td>
             <td class="w-min">
               <span class="status" data-tone={statusTone[raffle.status]}>
-                {#if raffle.status === "requested"}<span class="live" aria-hidden="true"></span>{/if}{statusWord[raffle.status]}
+                {#if raffle.status === "requested"}<span class="live" aria-hidden="true"></span>{/if}{raffle.status ===
+                  "drawn" && raffle.recurring
+                  ? "finished"
+                  : statusWord[raffle.status]}
               </span>
             </td>
           </tr>
@@ -46,6 +52,14 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--s-2) var(--gutter);
+  }
+  .kind {
+    white-space: nowrap;
+  }
+  @media (max-width: 40rem) {
+    .kind {
+      display: none;
+    }
   }
   .hero {
     display: grid;

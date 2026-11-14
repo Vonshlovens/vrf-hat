@@ -9,8 +9,8 @@
   },
   "scripts": {
     "dev": "vp dev",
-    "build": "wrangler types --include-runtime=false && vp -C . build",
-    "preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
+    "build": "wrangler types --include-runtime=false && vp -C . build && node scripts/wrap-worker.ts",
+    "preview": "wrangler dev --port 4173 --test-scheduled",
     "prepare": "vp config && (wrangler types --include-runtime=false >/dev/null; svelte-kit sync) || echo ''",
     "check": "wrangler types --include-runtime=false && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",

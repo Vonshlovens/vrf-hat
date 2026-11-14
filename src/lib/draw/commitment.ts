@@ -7,7 +7,7 @@ import { encodeAbiParameters, keccak256, concat, toBytes, type Hex } from "viem"
 export type CommittedEntrant = {
   /** 0-based position in the committed list. Winners are reported as positions. */
   index: number;
-  /** Random 16-byte ticket assigned when the entry was made. */
+  /** Random 16-byte ticket assigned when the entry was made. A name holding several tickets repeats it, once per slot. */
   ticket: Hex;
   /** Display name, normalised with `normalizeLabel`. */
   label: string;
@@ -20,9 +20,24 @@ export function normalizeLabel(raw: string): string {
   return raw.normalize("NFC").replace(/\s+/g, " ").trim().slice(0, MAX_LABEL_LENGTH);
 }
 
-/** On-chain key for a raffle: keccak256("vrf-hat:raffle:" + database id). */
-export function raffleKey(raffleId: string): Hex {
-  return keccak256(toBytes(`vrf-hat:raffle:${raffleId}`));
+export type DrawMode = "win" | "eliminate";
+
+/**
+ * On-chain key for one round of a raffle. The contract allows one draw per
+ * key, so every round gets its own, and the key commits to what the round
+ * means: nobody can later claim a list of winners was a list of eliminations.
+ *
+ *   round 1 of a `win` raffle: keccak256("vrf-hat:raffle:" + database id)
+ *   anything else:             keccak256("vrf-hat:raffle:" + database id + ":" + mode + ":" + round)
+ */
+export function raffleKey(raffleId: string, round = 1, mode: DrawMode = "win"): Hex {
+  return keccak256(toBytes(raffleKeyPreimage(raffleId, round, mode)));
+}
+
+/** The text hashed by `raffleKey`, for showing people how to rebuild it. */
+export function raffleKeyPreimage(raffleId: string, round = 1, mode: DrawMode = "win"): string {
+  const base = `vrf-hat:raffle:${raffleId}`;
+  return round === 1 && mode === "win" ? base : `${base}:${mode}:${round}`;
 }
 
 /**

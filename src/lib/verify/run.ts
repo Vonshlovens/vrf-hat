@@ -6,7 +6,9 @@ import {
   decodeFunctionData,
   http,
   isAddressEqual,
+  keccak256,
   parseEventLogs,
+  toBytes,
   type Address,
   type Hex,
   type Log,
@@ -14,7 +16,7 @@ import {
 import { chainInfo, explorerLink } from "#lib/chain/chains.ts";
 import { batchCoordinatorAbi, coordinatorAbi } from "#lib/chain/coordinator-abi.ts";
 import { raffleDrawAbi } from "#lib/chain/raffle-draw-abi.ts";
-import { commitmentRoot, type CommittedEntrant } from "#lib/draw/commitment.ts";
+import { commitmentRoot, type CommittedEntrant, type DrawMode } from "#lib/draw/commitment.ts";
 import { pickWinners, stepHash } from "#lib/draw/winners.ts";
 import { actualSeedOf, keyHashOf, randomWordOf, requestIdOf, vrfOutputOf } from "#lib/draw/vrf.ts";
 
@@ -45,6 +47,10 @@ export type VerifyInput = {
   raffleKey: Hex;
   rpcUrl?: string;
   entrantsUrl: string;
+  /** What a pulled ticket means in this raffle. Only changes the wording. */
+  mode?: DrawMode;
+  /** The text the raffle key should be the keccak256 of (raffle, round and mode). */
+  keyText?: string;
 };
 
 export type VerifyResult = {
@@ -100,6 +106,9 @@ export async function verifyDraw(
   const link = (kind: "tx" | "address" | "block", v: string | bigint) =>
     explorerLink(input.chainId, kind, v);
 
+  const eliminate = input.mode === "eliminate";
+  const picked = eliminate ? "eliminations" : "winners";
+
   const steps: Step[] = [
     {
       id: "seal",
@@ -127,8 +136,8 @@ export async function verifyDraw(
     },
     {
       id: "winners",
-      title: "The winners follow from the number",
-      summary: "Re-running the public shuffle gives the same winners as the contract.",
+      title: `The ${picked} follow from the number`,
+      summary: `Re-running the public shuffle gives the same ${picked} as the contract.`,
       status: "pending",
       facts: [],
       checks: [],
@@ -145,7 +154,7 @@ export async function verifyDraw(
       functionName: "getDraw",
       args: [input.raffleKey],
     });
-    if (draw.requestId === 0n) throw new Error("This raffle has no draw on-chain yet.");
+    if (draw.requestId === 0n) throw new Error("This draw isn't on-chain yet.");
 
     // -------------------------------------------------------------- 1. seal
     const res = await fetch(input.entrantsUrl);
@@ -157,7 +166,7 @@ export async function verifyDraw(
 
     const seal = steps[0];
     seal.facts.push(
-      { label: "Entries published", value: String(published.entrants.length) },
+      { label: "Tickets published", value: String(published.entrants.length) },
       { label: "Fingerprint rebuilt here", value: root, mono: true },
       { label: "Fingerprint on-chain", value: draw.entrantsRoot, mono: true },
       {
@@ -170,10 +179,19 @@ export async function verifyDraw(
     seal.checks.push(
       { label: "Rebuilt fingerprint matches the on-chain one", ok: root === draw.entrantsRoot },
       {
-        label: "Entry count matches the on-chain count",
+        label: "Ticket count matches the on-chain count",
         ok: published.entrants.length === draw.entrantCount,
       },
     );
+    if (input.keyText) {
+      seal.facts.push({ label: "Draw key is the hash of", value: input.keyText, mono: true });
+      seal.checks.push({
+        label: eliminate
+          ? "The on-chain key names this raffle and round, and marks it as an elimination"
+          : "The on-chain key names this raffle and round",
+        ok: keccak256(toBytes(input.keyText)) === input.raffleKey,
+      });
+    }
     finish(seal);
     emit();
 
@@ -409,12 +427,12 @@ export async function verifyDraw(
     }
 
     winnersStep.facts.push(
-      { label: "Entries", value: String(n) },
-      { label: "Winners", value: String(k) },
+      { label: "Tickets", value: String(n) },
+      { label: eliminate ? "Eliminated" : "Winners", value: String(k) },
     );
     winnersStep.checks.push(
       {
-        label: "Your browser and the contract pick the same entries",
+        label: "Your browser and the contract pick the same tickets",
         ok: onChain.length === local.length && onChain.every((w, i) => w === local[i]),
       },
       {

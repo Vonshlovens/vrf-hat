@@ -2,15 +2,28 @@
 <script lang="ts">
   let {
     number,
+    stub,
     label,
     size = "md",
     tone = "ticket",
-  }: { number: string; label: string; size?: "sm" | "md" | "lg"; tone?: "ticket" | "plain" } = $props();
+  }: {
+    /** Ticket number, shown as "No. 0001". */
+    number?: string;
+    /** Stub text for a ticket that has no single number. */
+    stub?: string;
+    label: string;
+    size?: "sm" | "md" | "lg";
+    tone?: "ticket" | "plain";
+  } = $props();
 </script>
 
 <div class="ticket {size}" class:drawn={tone === "ticket"}>
   <span class="name">{label}</span>
-  <span class="stub" aria-label="Ticket number {number}">No.&nbsp;{number}</span>
+  {#if number}
+    <span class="stub" aria-label="Ticket number {number}">No.&nbsp;{number}</span>
+  {:else if stub}
+    <span class="stub">{stub}</span>
+  {/if}
 </div>
 
 <style>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { untrack } from "svelte";
   import { createPublicClient, http } from "viem";
   import { PUBLIC_RPC_URL } from "$app/env/public";
   import { chainInfo } from "#lib/chain/chains.ts";
@@ -9,6 +9,8 @@
 
   let { data } = $props();
   const raffle = $derived(data.raffle);
+  const draw = $derived(data.draw);
+  const eliminate = $derived(raffle.mode === "eliminate");
 
   let result = $state<VerifyResult | null>(null);
   let running = $state(false);
@@ -34,34 +36,43 @@
   );
 
   async function run() {
-    if (!raffle.contract || !raffle.raffleKey || !raffle.chainId) return;
+    if (!draw) return;
+    const target = draw;
     running = true;
     result = null;
-    await verifyDraw(
+    lookup = null;
+    const finished = await verifyDraw(
       {
-        chainId: raffle.chainId,
-        contract: raffle.contract,
-        raffleKey: raffle.raffleKey,
+        chainId: target.chainId,
+        contract: target.contract,
+        raffleKey: target.raffleKey,
         rpcUrl: PUBLIC_RPC_URL,
-        entrantsUrl: `/r/${raffle.slug}/entrants.json`,
+        entrantsUrl: `/r/${raffle.slug}/entrants.json?round=${target.round}`,
+        mode: raffle.mode,
+        keyText: target.keyText,
       },
-      (r) => (result = r),
+      (r) => {
+        if (draw === target) result = r;
+      },
     );
+    // A different round may have been opened while this one was being checked.
+    if (draw !== target) return;
+    result = finished;
     running = false;
   }
 
   async function checkEntry(index: number) {
-    if (!result || !raffle.contract || !raffle.chainId) return;
+    if (!result || !draw) return;
     const entrant = result.entrants[index];
     const leaves = result.entrants.map(entrantLeaf);
     const proof = merkleProof(leaves, index);
     lookup = { label: entrant.label, ok: null, proof, leaf: leaves[index] };
-    const client = createPublicClient({ chain: chainInfo(raffle.chainId).chain, transport: http(PUBLIC_RPC_URL) });
+    const client = createPublicClient({ chain: chainInfo(draw.chainId).chain, transport: http(PUBLIC_RPC_URL) });
     const ok = await client.readContract({
-      address: raffle.contract,
+      address: draw.contract,
       abi: raffleDrawAbi,
       functionName: "isCommittedEntrant",
-      args: [raffle.raffleKey!, leaves[index], proof],
+      args: [draw.raffleKey, leaves[index], proof],
     });
     lookup = { ...lookup, ok };
   }
@@ -75,8 +86,9 @@
           ? { tone: "idle", word: "skipped" }
           : { tone: "run", word: running ? "checking" : "waiting" };
 
-  onMount(() => {
-    if (raffle.status !== "open") run();
+  // Runs on arrival and again whenever another round is opened.
+  $effect(() => {
+    if (draw) untrack(run);
   });
 </script>
 
@@ -85,11 +97,20 @@
 <article class="page reading">
   <header class="page-head">
     <a class="crumb" href="/r/{raffle.slug}">← {raffle.title}</a>
-    <h1>Check this draw</h1>
+    <h1>Check {raffle.recurring && draw ? `round ${draw.round}` : "this draw"}</h1>
   </header>
 
-  {#if raffle.status === "open"}
-    <p class="meta">Entries are still open. Check back after the draw.</p>
+  {#if data.rounds.length > 1}
+    <nav class="rounds small" aria-label="Rounds">
+      <span class="meta">Round</span>
+      {#each data.rounds as n (n)}
+        <a href="?round={n}" aria-current={n === draw?.round ? "page" : undefined}>{n}</a>
+      {/each}
+    </nav>
+  {/if}
+
+  {#if !draw}
+    <p class="meta">Nothing has been drawn yet. Check back after the first draw.</p>
   {:else}
     <div class="verdict" role="status" aria-live="polite">
       {#if verdict === "pass"}
@@ -160,7 +181,7 @@
                               <th scope="col" class="num w-min">Step</th>
                               <th scope="col">Hash</th>
                               <th scope="col">Mod</th>
-                              <th scope="col">Winner</th>
+                              <th scope="col">{eliminate ? "Eliminated" : "Winner"}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -187,7 +208,7 @@
       {#if result.entrants.length}
         <section class="find">
           <div class="field search">
-            <label for="q">Find an entry</label>
+            <label for="q">Find a ticket</label>
             <input class="input" id="q" type="search" bind:value={query} placeholder="Name or ticket" autocomplete="off" />
           </div>
           {#if matches.length}
@@ -223,7 +244,7 @@
       {/if}
 
       <p class="more small">
-        <a href="/r/{raffle.slug}/verify/by-hand">Check it by hand</a>
+        <a href="/r/{raffle.slug}/verify/by-hand?round={draw.round}">Check it by hand</a>
         <a href="/how#verify">What's checked</a>
       </p>
     {/if}
@@ -231,6 +252,17 @@
 </article>
 
 <style>
+  .rounds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1) 1.5ch;
+    margin-bottom: var(--lh);
+  }
+  .rounds a[aria-current="page"] {
+    font-weight: var(--fw-bold);
+    color: var(--ink);
+    text-decoration: none;
+  }
   .verdict {
     display: flex;
     flex-wrap: wrap;
