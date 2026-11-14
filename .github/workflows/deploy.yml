@@ -15,6 +15,14 @@ concurrency:
 permissions:
   contents: read
 
+# src/env.ts marks these required and SvelteKit validates them at build time.
+# Nothing is prerendered and the values are not inlined: the Worker reads the
+# real ones from its secrets and vars at runtime.
+env:
+  DATABASE_URL: postgres://build:placeholder@localhost/build
+  ORIGIN: https://vrf-hat.ericevans.dev
+  BETTER_AUTH_SECRET: build-placeholder
+
 jobs:
   check:
     runs-on: ubuntu-latest
