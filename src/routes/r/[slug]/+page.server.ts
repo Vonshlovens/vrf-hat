@@ -2,11 +2,16 @@ import { error, fail, redirect } from "@sveltejs/kit";
 import { picksFor } from "#lib/draw/rounds.ts";
 import { formatWhen, toLocalDateTime } from "#lib/draw/schedule.ts";
 import { drawsEnabled } from "#lib/server/chain.ts";
+import { MAX_IMPORT_CHARS, type Columns } from "#lib/import/table.ts";
 import { text } from "#lib/server/form.ts";
 import {
   RaffleError,
   addEntry,
   addNames,
+  importNames,
+  MAX_NAMES_PER_ADD,
+  MAX_TICKETS,
+  MAX_TICKETS_PER_NAME,
   endRaffle,
   listEntries,
   listRounds,
@@ -114,6 +119,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       pulled: pulled.map((p) => ({ label: p.label, number: pad(p.position + 1) })),
     })),
     drawsEnabled: drawsEnabled(),
+    /** For the import preview; the server checks them again. */
+    limits: { perName: MAX_TICKETS_PER_NAME, total: MAX_TICKETS, names: MAX_NAMES_PER_ADD },
   };
 };
 
@@ -148,6 +155,34 @@ export const actions: Actions = {
     const raffle = await hostRaffle(params.slug, locals.user?.id);
     try {
       return { added: await addNames(raffle, text(await request.formData(), "names")) };
+    } catch (err) {
+      return handle(err);
+    }
+  },
+
+  importNames: async ({ params, locals, request }) => {
+    const raffle = await hostRaffle(params.slug, locals.user?.id);
+    const form = await request.formData();
+    const file = form.get("file");
+    let table = text(form, "table");
+    if (file instanceof File && file.size > 0) {
+      if (file.size > MAX_IMPORT_CHARS) {
+        return fail(400, { error: "That file is too big; import at most 1 MB." });
+      }
+      table = await file.text();
+    }
+    // The columns the host picked. Anything missing falls back to the server's own guess.
+    const choice: Partial<Columns> = {};
+    const header = text(form, "header");
+    if (header) choice.header = header === "1";
+    const name = text(form, "nameCol");
+    if (name) choice.name = Number(name);
+    if (form.has("countCol")) {
+      const count = text(form, "countCol");
+      choice.count = count === "" ? null : Number(count);
+    }
+    try {
+      return { imported: await importNames(raffle, table, choice) };
     } catch (err) {
       return handle(err);
     }
