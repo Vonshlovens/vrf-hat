@@ -20,6 +20,13 @@ import {
 } from "#lib/server/raffles.ts";
 import { orgName, visibleRaffle } from "#lib/server/orgs.ts";
 import { parseSchedule } from "#lib/server/settings.ts";
+import {
+  RecipientError,
+  addRecipients,
+  hostEmailSettings,
+  removeRecipient,
+  setEmailOptions,
+} from "#lib/server/result-emails.ts";
 import type { Actions, PageServerLoad } from "./$types";
 
 const load_ = (slug: string, userId: string | undefined) =>
@@ -114,6 +121,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       pulled: pulled.map((p) => ({ label: p.label, number: pad(p.position + 1) })),
     })),
     drawsEnabled: drawsEnabled(),
+    /** Host only: who gets emailed after each round. Holds addresses, so never for anyone else. */
+    resultEmails: userId === raffle.hostId ? await hostEmailSettings(raffle) : null,
   };
 };
 
@@ -125,6 +134,7 @@ async function hostRaffle(slug: string, userId: string | undefined) {
 
 function handle(err: unknown) {
   if (err instanceof RaffleError) return fail(400, { error: err.message });
+  if (err instanceof RecipientError) return fail(400, { emailError: err.message });
   throw err;
 }
 
@@ -195,6 +205,31 @@ export const actions: Actions = {
       return handle(err);
     }
     return { scheduled: true };
+  },
+
+  addRecipients: async ({ params, locals, request }) => {
+    const raffle = await hostRaffle(params.slug, locals.user?.id);
+    try {
+      await addRecipients(raffle, locals.user!.id, text(await request.formData(), "emails"));
+    } catch (err) {
+      return handle(err);
+    }
+    return { emailsSaved: true };
+  },
+
+  removeRecipient: async ({ params, locals, request }) => {
+    const raffle = await hostRaffle(params.slug, locals.user?.id);
+    await removeRecipient(raffle, text(await request.formData(), "email"));
+  },
+
+  emailOptions: async ({ params, locals, request }) => {
+    const raffle = await hostRaffle(params.slug, locals.user?.id);
+    const form = await request.formData();
+    await setEmailOptions(raffle, {
+      emailHost: form.get("emailHost") === "on",
+      emailMembers: form.get("emailMembers") === "on",
+    });
+    return { emailsSaved: true };
   },
 
   end: async ({ params, locals }) => {

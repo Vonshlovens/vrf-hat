@@ -23,6 +23,7 @@ import {
   type Raffle,
 } from "./db/schema.ts";
 import { drawsEnabled, fulfillWithMock, readDraw, sendDrawRequest } from "./chain.ts";
+import { afterRoundDrawn } from "./result-emails.ts";
 
 /** Something the person can fix; the message is shown to them. */
 export class RaffleError extends Error {}
@@ -516,6 +517,8 @@ export async function syncDraw(r: Raffle): Promise<Raffle> {
     .set(finished ? { status: "drawn", nextDrawAt: null } : { status: "open" })
     .where(and(eq(raffle.id, r.id), eq(raffle.status, "requested")))
     .returning();
+  // Once per round however many callers got here; never throws.
+  await afterRoundDrawn(d.id);
   return updated ?? (await getRaffle(r.slug))!;
 }
 

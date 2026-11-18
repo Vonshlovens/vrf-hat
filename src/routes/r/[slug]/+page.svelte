@@ -3,6 +3,7 @@
   import { enhance } from "$app/forms";
   import { refreshAll } from "$app/navigation";
   import { page } from "$app/state";
+  import ResultEmails from "#lib/components/ResultEmails.svelte";
   import Ticket from "#lib/components/Ticket.svelte";
   import { describeRepeat } from "#lib/draw/schedule.ts";
 
@@ -328,6 +329,12 @@
           </form>
         </details>
       {/if}
+    </div>
+  {/if}
+
+  {#if data.resultEmails && raffle.status !== "drawn"}
+    <div class="block host">
+      <ResultEmails settings={data.resultEmails} org={data.org} error={form?.emailError} saved={form?.emailsSaved} />
     </div>
   {/if}
 
