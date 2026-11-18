@@ -44,6 +44,10 @@ describe("commitment", () => {
 
   it("normalises labels", () => {
     expect(normalizeLabel("  Dev \n  Patel ")).toBe("Dev Patel");
+    // Zero-width and direction-changing characters can't make a look-alike name.
+    expect(normalizeLabel("Dev\u200b Pa\u200dtel")).toBe("Dev Patel");
+    expect(normalizeLabel("\u202eDev Patel\u202c")).toBe("Dev Patel");
+    expect(normalizeLabel("Dev\u0000Patel")).toBe("Dev Patel");
   });
 });
 

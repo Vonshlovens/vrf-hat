@@ -17,6 +17,10 @@
   "workers_dev": false,
   "preview_urls": false,
   "observability": { "enabled": true },
+  // Sign-in emails per visitor IP (src/routes/login/+page.server.ts).
+  "ratelimits": [
+    { "name": "SIGNIN_LIMITER", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
+  ],
   // Non-secret settings. Secrets (DATABASE_URL, BETTER_AUTH_SECRET,
   // DRAWER_PRIVATE_KEY, ...) are set with `wrangler secret put`.
   "vars": {

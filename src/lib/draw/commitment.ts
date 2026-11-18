@@ -15,9 +15,21 @@ export type CommittedEntrant = {
 
 export const MAX_LABEL_LENGTH = 64;
 
-/** Canonical form of a display name, so the same name always hashes the same. */
+/**
+ * Canonical form of a display name, so the same name always hashes the same.
+ * Invisible and text-direction characters (zero-width spaces, right-to-left
+ * overrides, control characters) are dropped, so two names that look the same
+ * are the same. Hashing uses the stored label as is, so lists sealed before
+ * a change here still verify.
+ */
 export function normalizeLabel(raw: string): string {
-  return raw.normalize("NFC").replace(/\s+/g, " ").trim().slice(0, MAX_LABEL_LENGTH);
+  return raw
+    .normalize("NFC")
+    .replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ")
+    .replace(/\p{Cf}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_LABEL_LENGTH);
 }
 
 export type DrawMode = "win" | "eliminate";

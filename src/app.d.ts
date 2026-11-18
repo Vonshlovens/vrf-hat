@@ -11,6 +11,10 @@ declare global {
       user?: User;
       session?: Session;
     }
+    interface Platform {
+      /** The Worker's bindings (wrangler.jsonc); absent in `vp dev`. */
+      env?: Env;
+    }
   }
 }
 
