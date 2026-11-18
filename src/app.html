@@ -5,10 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="text-scale" content="scale" />
     <script>
-      // Apply a pinned theme before first paint; no attribute means follow the OS.
+      // Apply the stored palette and pinned mode before first paint. No data-palette
+      // means VRF Hat; no data-theme means follow the OS. See ThemeToggle.svelte.
       try {
+        var root = document.documentElement;
+        var p = localStorage.getItem("vrf-hat-palette");
+        if (p === "von" || p === "cwl") root.setAttribute("data-palette", p);
         var t = localStorage.getItem("von-theme");
-        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+        if (t === "light" || t === "dark") root.setAttribute("data-theme", t);
       } catch (e) {}
     </script>
     <link

@@ -1,0 +1,107 @@
+/*
+ * Theme "von": the von design system's own palette, as the site looked
+ * before palette.css (warm paper, near-black ink, identity red). Values are
+ * copied from von/tokens.css so this file wins over palette.css without
+ * touching the snapshot. A drawn ticket is inverse ink, as it was then.
+ * Selected with <html data-palette="von">. Keep the two dark blocks identical.
+ */
+:root[data-palette="von"] {
+  --paper: #f2ece1;
+  --paper-sunk: #e8e0d2;
+  --paper-raised: #faf6ef;
+  --ink: #1d1914;
+  --ink-2: #4b453e;
+  --ink-3: #655e55;
+  --line: #d3c9b8;
+  --line-strong: #857a6c;
+  --rule: var(--ink);
+
+  --mark: #7d0000;
+  --mark-fill: #7d0000;
+  --on-mark: #fbf3e6;
+  --mark-wash: #ecd9cf;
+  --link: #7d0000;
+  --link-hover: #1d1914;
+  --focus: #7d0000;
+
+  --ticket: #1d1914;
+  --ticket-ink: #f2ece1;
+
+  --ok: #2c6a2e;    --ok-wash: #dde5cd;   --ok-line: #8fae86;
+  --run: #1d5d78;   --run-wash: #d5e1e2;  --run-line: #86aab6;
+  --warn: #765300;  --warn-wash: #ede0b9; --warn-line: #c3a45a;
+  --fail: #a11d1a;  --fail-wash: #f1d7cf; --fail-line: #d08b80;
+
+  --scrim: rgb(29 25 20 / 0.42);
+  --shadow-pop: 0 14px 32px -18px rgb(29 25 20 / 0.45), 0 2px 6px -2px rgb(29 25 20 / 0.12);
+}
+
+:root[data-palette="von"][data-theme="dark"] {
+  --paper: #171512;
+  --paper-sunk: #100e0c;
+  --paper-raised: #211e1a;
+  --ink: #ece5d8;
+  --ink-2: #bcb4a6;
+  --ink-3: #968d80;
+  --line: #36312b;
+  --line-strong: #756c60;
+  --rule: var(--ink);
+
+  --mark: #e8705f;
+  --mark-fill: #8f1010;
+  --on-mark: #fbf3e6;
+  --mark-wash: #3a1d19;
+  --link: #dcb46c;
+  --link-hover: #ece5d8;
+  --focus: #e8705f;
+
+  --ticket: #ece5d8;
+  --ticket-ink: #171512;
+
+  --ok: #8ccf86;    --ok-wash: #1e2a1c;   --ok-line: #3f6a3b;
+  --run: #7cc2dc;   --run-wash: #16262b;  --run-line: #355e6c;
+  --warn: #e5c066;  --warn-wash: #2c2416; --warn-line: #6f5a2a;
+  --fail: #ff8b7c;  --fail-wash: #361a19; --fail-line: #7a3a33;
+
+  --scrim: rgb(8 7 6 / 0.66);
+  --shadow-pop: 0 18px 40px -16px rgb(0 0 0 / 0.7), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="von"]:not([data-theme="light"]) {
+    --paper: #171512;
+    --paper-sunk: #100e0c;
+    --paper-raised: #211e1a;
+    --ink: #ece5d8;
+    --ink-2: #bcb4a6;
+    --ink-3: #968d80;
+    --line: #36312b;
+    --line-strong: #756c60;
+    --rule: var(--ink);
+
+    --mark: #e8705f;
+    --mark-fill: #8f1010;
+    --on-mark: #fbf3e6;
+    --mark-wash: #3a1d19;
+    --link: #dcb46c;
+    --link-hover: #ece5d8;
+    --focus: #e8705f;
+
+    --ticket: #ece5d8;
+    --ticket-ink: #171512;
+
+    --ok: #8ccf86;    --ok-wash: #1e2a1c;   --ok-line: #3f6a3b;
+    --run: #7cc2dc;   --run-wash: #16262b;  --run-line: #355e6c;
+    --warn: #e5c066;  --warn-wash: #2c2416; --warn-line: #6f5a2a;
+    --fail: #ff8b7c;  --fail-wash: #361a19; --fail-line: #7a3a33;
+
+    --scrim: rgb(8 7 6 / 0.66);
+    --shadow-pop: 0 18px 40px -16px rgb(0 0 0 / 0.7), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* von selects in its identity red; the app layer's yellow selection is VRF Hat's. */
+:root[data-palette="von"] ::selection {
+  background: var(--mark-fill);
+  color: var(--on-mark);
+}
