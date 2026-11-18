@@ -81,6 +81,51 @@
     </div>
   </section>
 
+  <section class="section" id="randomness">
+    <div class="section-head"><h2>Is it really random?</h2></div>
+    <div class="prose">
+      <p>
+        <strong>One number per round.</strong> Each round asks Chainlink for a single random number. That
+        one number gives every ticket the round pulls: pull <code>i</code> uses
+        <code>keccak256(number, i)</code> to choose among the tickets still in the hat, then sets the chosen
+        ticket aside. A round that pulls 13 tickets is one request, not 13.
+      </p>
+      <p>
+        <strong>Deterministic, but unpredictable.</strong> Strictly, none of this is "true" randomness.
+        Chainlink's number is computed from a secret key and the request, and the pulls are computed from
+        the number. But nobody without the key can work the number out before it arrives, and no feasible
+        test can tell the output apart from coin flips. Doing so would mean breaking the hash that secures
+        Ethereum itself.
+      </p>
+      <p>
+        <strong>The one measurable difference.</strong> A 256-bit number has about 2<sup>256</sup> possible
+        values, so it can't produce every possible order of a large hat. A hat of 94 tickets has about
+        2<sup>485</sup> orders, so most complete orderings of it can never come from one number. A round
+        pulls only part of the hat, though: 13 pulls from 94 tickets have about 2<sup>84</sup> possible
+        outcomes, and every one of them can happen. The limit only starts to bite on a round that pulls
+        around 40 tickets from a hat of 94, or about 20 from a hat of 10,000. Even then, every ticket
+        still has the same chance on every pull, and the leftover rounding bias is about one part in
+        2<sup>249</sup>.
+      </p>
+      <p>
+        <strong>A hat isn't truly random either.</strong> Paper tumbling in a hat follows ordinary physics:
+        the slip that comes out is fixed by how the slips were folded, where they sat and how the hand
+        moved. We call it random because nobody can follow all that, not because the outcome was open.
+        What makes a draw fair is that nobody could know or steer the result before it was fixed. On that
+        test a real hat does worse: folded or heavier slips come out at different rates, late entries sit
+        on top, and nobody can check afterwards.
+      </p>
+      <p>
+        <strong>Being deterministic is what makes it checkable.</strong> A hardware random number generator
+        is "truer", but you'd have to trust whoever ran it. Here anyone can redo the calculation and get
+        the same tickets. What's left to trust is narrow: that nobody had Chainlink's key and saw the
+        number early, and that keccak stays unbroken. Each round can be answered only once. A request
+        Chainlink never answers can be retried on the same sealed list, and a new round is a new public
+        request, so a quiet redo isn't possible.
+      </p>
+    </div>
+  </section>
+
   <section class="section" id="verify">
     <div class="section-head"><h2>What the verify page checks</h2></div>
     <p class="prose intro">
