@@ -1,4 +1,6 @@
 import { error, fail, redirect } from "@sveltejs/kit";
+import { describeCalendar } from "#lib/draw/calendar.ts";
+import { formatDay, formatTime, planRows } from "#lib/draw/plan.ts";
 import { picksFor } from "#lib/draw/rounds.ts";
 import { formatWhen, toLocalDateTime } from "#lib/draw/schedule.ts";
 import { drawsEnabled } from "#lib/server/chain.ts";
@@ -10,6 +12,7 @@ import {
   endRaffle,
   listEntries,
   listRounds,
+  planContext,
   removeEntry,
   setEntryCount,
   setSchedule,
@@ -19,7 +22,7 @@ import {
   ticketsLeft,
 } from "#lib/server/raffles.ts";
 import { orgName, visibleRaffle } from "#lib/server/orgs.ts";
-import { parseSchedule } from "#lib/server/settings.ts";
+import { parsePicks, parseSchedule } from "#lib/server/settings.ts";
 import type { Actions, PageServerLoad } from "./$types";
 
 const load_ = (slug: string, userId: string | undefined) =>
@@ -78,6 +81,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     names: rows.filter((e) => e.left > 0).length,
   };
 
+  // A calendar raffle's draws to come, with what each would pull from the hat as it stands.
+  const now = new Date();
+  const ctx = await planContext(raffle, now, { upcoming: true, byHand: true });
+  const PLAN_SHOWN = 12;
+  const planned =
+    raffle.calendar && raffle.status !== "drawn"
+      ? planRows(raffle, raffle.calendar, tz, hat, ctx.pulled, now)
+      : [];
+
   return {
     raffle: {
       slug: raffle.slug,
@@ -90,6 +102,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       recurring: raffle.recurring,
       repeatEvery: raffle.repeatEvery,
       repeatUnit: raffle.repeatUnit,
+      calendar: raffle.calendar,
+      calendarText: raffle.calendar ? describeCalendar(raffle.calendar) : null,
+      pickPlan: raffle.pickPlan,
+      pickTotal: raffle.pickTotal,
       timezone: raffle.timezone,
       nextDrawAt: raffle.nextDrawAt?.toISOString() ?? null,
       nextDrawText: raffle.nextDrawAt ? formatWhen(raffle.nextDrawAt, tz) : null,
@@ -104,8 +120,22 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     entered: entries.some((e) => e.userId && e.userId === userId),
     entries: rows,
     hat,
-    /** Tickets the next draw would pull; 0 if it can't run yet. */
-    nextPicks: picksFor(raffle, hat),
+    /** Tickets a draw started now would pull; 0 if it can't run yet. */
+    nextPicks: picksFor(raffle, hat, ctx),
+    /** Tickets pulled so far, over every round (counted for spread win raffles only). */
+    pulled: ctx.pulled,
+    plan: {
+      rows: planned.slice(0, PLAN_SHOWN).map((p) => ({
+        at: p.at.toISOString(),
+        day: formatDay(p.at, tz, now),
+        time: formatTime(p.at, tz),
+        picks: p.picks,
+        text: p.text,
+      })),
+      more: Math.max(0, planned.length - PLAN_SHOWN),
+      last: planned.length ? formatDay(planned.at(-1)!.at, tz, now) : null,
+      namesLeftAtEnd: planned.at(-1)?.namesLeft ?? null,
+    },
     rounds: rounds.map(({ draw, pulled }) => ({
       round: draw.round,
       done: Boolean(draw.randomWord),
@@ -175,7 +205,7 @@ export const actions: Actions = {
   draw: async ({ params, locals }) => {
     const raffle = await hostRaffle(params.slug, locals.user?.id);
     try {
-      await startDraw(raffle);
+      await startDraw(raffle, { byHand: true });
     } catch (err) {
       if (err instanceof RaffleError) return handle(err);
       console.error("startDraw failed", err);
@@ -187,10 +217,13 @@ export const actions: Actions = {
 
   schedule: async ({ params, locals, request }) => {
     const raffle = await hostRaffle(params.slug, locals.user?.id);
-    const parsed = parseSchedule(await request.formData());
+    const form = await request.formData();
+    const parsed = parseSchedule(form);
     if (!parsed.ok) return fail(400, { error: parsed.error });
+    const picks = parsePicks(form, { ...raffle, calendar: parsed.value.calendar });
+    if (!picks.ok) return fail(400, { error: picks.error });
     try {
-      await setSchedule(raffle, parsed.value);
+      await setSchedule(raffle, { ...parsed.value, ...picks.value });
     } catch (err) {
       return handle(err);
     }

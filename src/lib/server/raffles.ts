@@ -8,7 +8,15 @@ import {
   raffleKey,
   type CommittedEntrant,
 } from "#lib/draw/commitment.ts";
-import { isFinished, parseNameLine, picksFor, removesPicked, type Hat } from "#lib/draw/rounds.ts";
+import { nextPlanned, remainingDraws } from "#lib/draw/calendar.ts";
+import {
+  isFinished,
+  parseNameLine,
+  picksFor,
+  removesPicked,
+  type Hat,
+  type PlanContext,
+} from "#lib/draw/rounds.ts";
 import { nextAfter } from "#lib/draw/schedule.ts";
 import { pickWinners } from "#lib/draw/winners.ts";
 import { db } from "./db/index.ts";
@@ -56,11 +64,14 @@ export type RaffleSettings = Pick<
   | "recurring"
   | "repeatEvery"
   | "repeatUnit"
+  | "calendar"
   | "timezone"
   | "nextDrawAt"
   | "maxDraws"
   | "returnPicked"
   | "keepCount"
+  | "pickPlan"
+  | "pickTotal"
 >;
 
 /** `organizationId` must be one the host belongs to; the caller checks. */
@@ -124,6 +135,34 @@ async function hatOf(r: Raffle): Promise<Hat> {
     .from(entry)
     .where(eq(entry.raffleId, r.id));
   return row;
+}
+
+/** Tickets pulled over every finished round. */
+async function pulledSoFar(raffleId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`coalesce(sum(${draw.pickCount}), 0)::int` })
+    .from(draw)
+    .where(and(eq(draw.raffleId, raffleId), isNotNull(draw.randomWord)));
+  return row.n;
+}
+
+/**
+ * Where a raffle stands against its calendar at `now`: how many planned
+ * draws are still to come, and what has been pulled. `upcoming` counts a draw
+ * being started now on top of the planned dates after it.
+ */
+export async function planContext(
+  r: Raffle,
+  now = new Date(),
+  opts: { upcoming?: boolean; byHand?: boolean } = {},
+): Promise<PlanContext> {
+  const left = r.calendar ? remainingDraws(r.calendar, r.timezone ?? "UTC", now) : null;
+  const pulled = r.mode === "win" && r.pickPlan === "spread" ? await pulledSoFar(r.id) : 0;
+  return {
+    draws: left === null ? null : left + (opts.upcoming ? 1 : 0),
+    pulled,
+    byHand: opts.byHand,
+  };
 }
 
 const UUID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -295,7 +334,13 @@ export async function listRounds(r: Raffle) {
   return draws.map((d) => ({ draw: d, pulled: pulled.filter((p) => p.drawId === d.id) }));
 }
 
-function cantDrawReason(r: Raffle, hat: Hat) {
+function cantDrawReason(r: Raffle, hat: Hat, ctx: PlanContext) {
+  if (r.pickPlan === "spread" && ctx.draws) {
+    if (r.mode === "win" && ctx.pulled >= (r.pickTotal ?? 0)) return "Every winner has been drawn.";
+    if (hat.tickets > 0 && (r.mode === "win" || hat.names > r.keepCount)) {
+      return "The plan has nobody to pull at this draw.";
+    }
+  }
   if (!r.recurring) {
     const k = r.winnerCount;
     return `Add at least ${k} ${k === 1 ? "ticket" : "tickets"} first.`;
@@ -312,11 +357,14 @@ function cantDrawReason(r: Raffle, hat: Hat) {
  * word for one round.
  * Order: flip status (stops changes) → write the round and its list → build root → send tx.
  */
-export async function startDraw(r: Raffle): Promise<Raffle> {
+export async function startDraw(r: Raffle, opts: { byHand?: boolean } = {}): Promise<Raffle> {
   if (!PUBLIC_RAFFLE_CONTRACT) throw new RaffleError("Draws aren't configured on this server.");
   if (r.status === "drawn") throw new RaffleError("This raffle has finished.");
-  const hat = await hatOf(r);
-  if (picksFor(r, hat) === 0) throw new CannotDraw(cantDrawReason(r, hat));
+  const [hat, ctx] = await Promise.all([
+    hatOf(r),
+    planContext(r, new Date(), { upcoming: true, byHand: opts.byHand }),
+  ]);
+  if (picksFor(r, hat, ctx) === 0) throw new CannotDraw(cantDrawReason(r, hat, ctx));
   if (hat.tickets > MAX_TICKETS) {
     throw new CannotDraw(
       `A draw can hold at most ${MAX_TICKETS.toLocaleString("en")} tickets; the hat has ${hat.tickets.toLocaleString("en")}.`,
@@ -346,7 +394,7 @@ export async function startDraw(r: Raffle): Promise<Raffle> {
         chainId: PUBLIC_CHAIN_ID,
         contractAddress: PUBLIC_RAFFLE_CONTRACT,
         raffleKey: key,
-        pickCount: picksFor(r, hat),
+        pickCount: picksFor(r, hat, ctx),
       })
       .returning();
     drawId = d.id;
@@ -372,8 +420,8 @@ export async function startDraw(r: Raffle): Promise<Raffle> {
       tickets: committed.length,
       names: new Set(committed.map((c) => c.ticket)).size,
     };
-    const picks = picksFor(r, sealed);
-    if (picks === 0) throw new CannotDraw(cantDrawReason(r, sealed));
+    const picks = picksFor(r, sealed, ctx);
+    if (picks === 0) throw new CannotDraw(cantDrawReason(r, sealed, ctx));
     if (picks !== d.pickCount) {
       await db.update(draw).set({ pickCount: picks }).where(eq(draw.id, d.id));
     }
@@ -421,14 +469,16 @@ async function abandonRound(raffleId: string, drawId: string | undefined) {
 async function advanceSchedule(r: Raffle) {
   const now = new Date();
   if (!r.nextDrawAt || r.nextDrawAt > now) return;
-  const next =
-    r.recurring && r.repeatEvery && r.repeatUnit
-      ? nextAfter(r.nextDrawAt, now, {
-          every: r.repeatEvery,
-          unit: r.repeatUnit,
-          timezone: r.timezone ?? "UTC",
-        })
-      : null;
+  let next: Date | null = null;
+  if (r.recurring && r.calendar) {
+    next = nextPlanned(r.calendar, r.timezone ?? "UTC", now);
+  } else if (r.recurring && r.repeatEvery && r.repeatUnit) {
+    next = nextAfter(r.nextDrawAt, now, {
+      every: r.repeatEvery,
+      unit: r.repeatUnit,
+      timezone: r.timezone ?? "UTC",
+    });
+  }
   await db.update(raffle).set({ nextDrawAt: next }).where(eq(raffle.id, r.id));
 }
 
@@ -503,14 +553,15 @@ export async function syncDraw(r: Raffle): Promise<Raffle> {
     .where(eq(draw.id, d.id));
   await refreshPicked(r.id);
 
-  const [hat, [{ done }]] = await Promise.all([
+  const [hat, [{ done }], ctx] = await Promise.all([
     hatOf(r),
     db
       .select({ done: count() })
       .from(draw)
       .where(and(eq(draw.raffleId, r.id), isNotNull(draw.randomWord))),
+    planContext(r),
   ]);
-  const finished = isFinished(r, hat, done);
+  const finished = isFinished(r, hat, done, ctx);
   const [updated] = await db
     .update(raffle)
     .set(finished ? { status: "drawn", nextDrawAt: null } : { status: "open" })
@@ -582,11 +633,19 @@ export async function runDue(maxPending = 10, maxDue = 3) {
 
 export type ScheduleSettings = Pick<
   Raffle,
-  "repeatEvery" | "repeatUnit" | "timezone" | "nextDrawAt"
+  "repeatEvery" | "repeatUnit" | "calendar" | "timezone" | "nextDrawAt"
 >;
 
-/** Changes when a repeating raffle draws. All null: the host starts each round by hand. */
-export async function setSchedule(r: Raffle, schedule: ScheduleSettings) {
+/** How many each draw pulls. */
+export type PickSettings = Pick<Raffle, "winnerCount" | "pickPlan" | "pickTotal">;
+
+/**
+ * Changes when a repeating raffle draws, and how many each draw pulls. All
+ * schedule fields null: the host starts each round by hand. Spread picks are
+ * recomputed at every draw, so changing the dates mid-raffle just re-plans
+ * what's left.
+ */
+export async function setSchedule(r: Raffle, schedule: ScheduleSettings & PickSettings) {
   if (!r.recurring) throw new RaffleError("This raffle has a single draw.");
   if (r.status === "drawn") throw new RaffleError("This raffle has finished.");
   await db.update(raffle).set(schedule).where(eq(raffle.id, r.id));
