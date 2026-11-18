@@ -201,3 +201,31 @@ describe("importError", () => {
     expect(importError(read("Name,Tickets\n,2").result, limits)).toMatch(/No names/);
   });
 });
+
+describe("space-separated pastes", () => {
+  // A spreadsheet copy whose tabs became spaces, with a totals row.
+  const sheet = [
+    "TEAM NAME    AMOUNT OF ENTRIES    ELIMINATIONS",
+    "Team 01    4    ",
+    "Team 10    16    ",
+    "    20    0",
+  ].join("\n");
+
+  it("reads runs of spaces as columns", () => {
+    const table = parseTable(sheet);
+    const cols = suggestColumns(table);
+    expect(cols).toEqual({ header: true, name: 0, count: 1 });
+    const result = toEntries(table, cols);
+    expect(result.entries).toEqual([
+      { label: "Team 01", count: 4 },
+      { label: "Team 10", count: 16 },
+    ]);
+    expect(result.skipped).toBe(1);
+  });
+
+  it("keeps a plain list with the odd double space as one column", () => {
+    const table = parseTable("Ana  Smith\nBen Jones\nCy Lee\nDee Park\nEd Wu");
+    expect(table.width).toBe(1);
+    expect(table.rows[0]).toEqual(["Ana  Smith"]);
+  });
+});

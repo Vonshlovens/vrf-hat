@@ -100,7 +100,7 @@ describe("buildResultsEmail", () => {
     expect(m.html).toContain('href="https://hat.example/r/abc23456/verify?round=3"');
   });
 
-  it("says eliminated, and left standing at the end", () => {
+  it("says who is out, and left standing at the end", () => {
     const m = buildResultsEmail(
       {
         ...base,
@@ -110,11 +110,52 @@ describe("buildResultsEmail", () => {
       },
       host,
     );
-    expect(m.subject).toBe("Office <Lunch> Draw: round 3 results, final");
-    expect(m.text).toContain("Eliminated:\n  No. 0003  Ana");
+    expect(m.subject).toBe("Office <Lunch> Draw: round 3 results, final (1 name out)");
+    expect(m.text).toContain("Out this round:\n  Ana\n");
+    expect(m.text).toContain("Tickets pulled (1):\n  Ana: 1 (No. 0003), out");
     expect(m.text).toContain("Left standing: 1 name\n  Cy");
     expect(m.text).toContain("That was the last round. The raffle is finished.");
     expect(m.text).not.toContain("Next draw");
+  });
+
+  it("tells extra lives apart from names going out", () => {
+    const m = buildResultsEmail(
+      {
+        ...base,
+        raffle: { ...base.raffle, mode: "eliminate" },
+        pulled: [
+          { label: "Team 10", position: 33, id: "a" },
+          { label: "Team 20", position: 90, id: "b" },
+          { label: "Team 10", position: 29, id: "a" },
+        ],
+        remaining: [
+          { label: "Team 10", tickets: 14, id: "a" },
+          { label: "Team 01", tickets: 4, id: "c" },
+        ],
+      },
+      host,
+    );
+    expect(m.subject).toBe("Office <Lunch> Draw: round 3 results (1 name out)");
+    expect(m.text).toContain("Out this round:\n  Team 20\n");
+    expect(m.text).toContain(
+      "Tickets pulled (3):\n  Team 10: 2 (No. 0034, 0030), 14 left\n  Team 20: 1 (No. 0091), out",
+    );
+    expect(m.html).toContain("<strong>Team 20</strong>");
+  });
+
+  it("says when nobody is out yet", () => {
+    const m = buildResultsEmail(
+      {
+        ...base,
+        raffle: { ...base.raffle, mode: "eliminate" },
+        pulled: [{ label: "Team 10", position: 0, id: "a" }],
+        remaining: [{ label: "Team 10", tickets: 15, id: "a" }],
+      },
+      host,
+    );
+    expect(m.subject).toBe("Office <Lunch> Draw: round 3 results (nobody out)");
+    expect(m.text).toContain("Nobody is out this round");
+    expect(m.text).not.toContain("Out this round");
   });
 
   it("keeps a single draw short", () => {

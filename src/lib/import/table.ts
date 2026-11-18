@@ -105,9 +105,27 @@ export function sniffDelimiter(text: string): Delimiter | null {
   return best;
 }
 
+function spacedColumns(text: string): boolean {
+  const lines = text
+    .split(/\r?\n|\r/, SAMPLE_LINES * 4)
+    .filter((l) => l.trim())
+    .slice(0, SAMPLE_LINES);
+  if (lines.length === 0) return false;
+  const spaced = lines.filter((l) => / {2,}\S/.test(l.trimEnd())).length;
+  return spaced / lines.length >= 0.8;
+}
+
 /** Reads pasted or uploaded text into a table. */
 export function parseTable(text: string): Table {
-  const delimiter = sniffDelimiter(text);
+  let delimiter = sniffDelimiter(text);
+  // Tabs often turn into runs of spaces on the way (a terminal, some mail and
+  // chat apps). With no other delimiter, read 2+ spaces as a column break,
+  // but only if most lines have one, so a plain list with the odd double
+  // space between first and last name stays one column.
+  if (!delimiter && spacedColumns(text)) {
+    text = text.replace(/ {2,}/g, "\t");
+    delimiter = "\t";
+  }
   const rows = parseRows(text, delimiter);
   const width = rows.reduce((w, r) => Math.max(w, r.length), 0);
   for (const r of rows) while (r.length < width) r.push("");

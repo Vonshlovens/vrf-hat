@@ -164,12 +164,12 @@ async function deliver(drawId: string) {
     listRecipients(r.id),
     r.organizationId ? memberEmails(r.organizationId) : [],
     db
-      .select({ label: drawSlot.label, position: drawSlot.position })
+      .select({ label: drawSlot.label, position: drawSlot.position, id: drawSlot.entryId })
       .from(drawSlot)
       .where(and(eq(drawSlot.drawId, drawId), isNotNull(drawSlot.pickedRank)))
       .orderBy(asc(drawSlot.pickedRank)),
     db
-      .select({ label: entry.label, count: entry.count, picked: entry.picked })
+      .select({ id: entry.id, label: entry.label, count: entry.count, picked: entry.picked })
       .from(entry)
       .where(eq(entry.raffleId, r.id))
       .orderBy(asc(entry.createdAt), asc(entry.id)),
@@ -203,6 +203,7 @@ async function deliver(drawId: string) {
     pulled,
     remaining: entries
       .map((e) => ({
+        id: e.id,
         label: e.label,
         tickets: removes ? Math.max(0, e.count - e.picked) : e.count,
       }))

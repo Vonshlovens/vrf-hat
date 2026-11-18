@@ -21,10 +21,13 @@ export type RoundResult = {
   round: number;
   hostName: string;
   orgName: string | null;
-  /** Tickets this round pulled, in the order they came out. `position` is 0-based. */
-  pulled: { label: string; position: number }[];
+  /**
+   * Tickets this round pulled, in the order they came out. `position` is
+   * 0-based; `id` is the entry's, when known (labels can repeat).
+   */
+  pulled: { label: string; position: number; id?: string | null }[];
   /** Names still holding tickets after the round. */
-  remaining: { label: string; tickets: number }[];
+  remaining: { label: string; tickets: number; id?: string | null }[];
 };
 
 export type Message = { to: string; subject: string; text: string; html: string };
@@ -103,13 +106,51 @@ function whyLine(r: RoundResult, to: Recipient): string {
   }
 }
 
+/**
+ * An elimination round's pulled tickets, one line per name in the order each
+ * name first came out: how many it lost, which numbers, and what it has left.
+ */
+function byName(r: RoundResult) {
+  const keyOf = (e: { label: string; id?: string | null }) => e.id ?? `label:${e.label}`;
+  const left = new Map(r.remaining.map((e) => [keyOf(e), e.tickets]));
+  const groups = new Map<string, { label: string; numbers: string[] }>();
+  for (const p of r.pulled) {
+    const g = groups.get(keyOf(p)) ?? { label: p.label, numbers: [] };
+    g.numbers.push(pad(p.position + 1));
+    groups.set(keyOf(p), g);
+  }
+  return [...groups].map(([key, g]) => {
+    const remaining = left.get(key) ?? 0;
+    return {
+      label: g.label,
+      number: g.numbers.join(", "),
+      lost: g.numbers.length,
+      note: remaining > 0 ? `${remaining} left` : "out",
+    };
+  });
+}
+
 /** The facts shared by both versions of the email. */
 function content(r: RoundResult) {
   const eliminate = r.raffle.mode === "eliminate";
   const title = oneLine(r.raffle.title);
   const drawnLine = r.raffle.recurring ? `Round ${r.round} has been drawn.` : "The draw is done.";
-  const pickedHeading = eliminate ? "Eliminated" : r.pulled.length === 1 ? "Winner" : "Winners";
-  const picked = r.pulled.map((p) => ({ label: p.label, number: pad(p.position + 1) }));
+  const pickedHeading = eliminate
+    ? `Tickets pulled (${r.pulled.length})`
+    : r.pulled.length === 1
+      ? "Winner"
+      : "Winners";
+  const picked = eliminate
+    ? byName(r)
+    : r.pulled.map((p) => ({
+        label: p.label,
+        number: pad(p.position + 1),
+        lost: undefined as number | undefined,
+        note: "",
+      }));
+  // An elimination round can pull tickets without putting anyone out: a name
+  // is out only once its last ticket is pulled.
+  const out = eliminate ? picked.filter((p) => p.note === "out").map((p) => p.label) : null;
 
   // A single win draw has nothing more to come, so who else was in doesn't matter.
   const showRemaining = r.raffle.recurring || eliminate;
@@ -140,9 +181,10 @@ function content(r: RoundResult) {
     status = "The next round starts when the host draws it.";
   }
 
+  const outText = out ? (out.length ? `${plural(out.length, "name")} out` : "nobody out") : "";
   const subject = oneLine(
     r.raffle.recurring
-      ? `${title}: round ${r.round} ${r.raffle.finished ? "results, final" : "results"}`
+      ? `${title}: round ${r.round} ${r.raffle.finished ? "results, final" : "results"}${outText ? ` (${outText})` : ""}`
       : `${title}: results`,
   );
 
@@ -152,6 +194,7 @@ function content(r: RoundResult) {
     drawnLine,
     pickedHeading,
     picked,
+    out,
     showRemaining,
     remainingHeading,
     remainingSummary,
@@ -165,8 +208,18 @@ function content(r: RoundResult) {
 
 function plainText(r: RoundResult, to: Recipient): string {
   const c = content(r);
-  const lines = [`${c.title}`, c.drawnLine, "", `${c.pickedHeading}:`];
-  for (const p of c.picked) lines.push(`  No. ${p.number}  ${p.label}`);
+  const lines = [`${c.title}`, c.drawnLine, ""];
+  if (c.out) {
+    if (c.out.length) {
+      lines.push("Out this round:");
+      for (const label of c.out) lines.push(`  ${label}`);
+    } else {
+      lines.push("Nobody is out this round: every name that lost a ticket still has one left.");
+    }
+    lines.push("");
+  }
+  lines.push(`${c.pickedHeading}:`);
+  for (const p of c.picked) lines.push(`  ${pickedLine(p)}`);
   if (c.picked.length === 0) lines.push("  (none)");
   if (c.showRemaining) {
     lines.push("", `${c.remainingHeading}: ${c.remainingSummary}`);
@@ -186,6 +239,12 @@ function plainText(r: RoundResult, to: Recipient): string {
   return lines.join("\n");
 }
 
+/** "No. 0007  Ana", or for an elimination "Team 10: 2 (No. 0034, 0030), 14 left". */
+function pickedLine(p: { label: string; number: string; note: string; lost?: number }) {
+  if (p.lost === undefined) return `No. ${p.number}  ${p.label}`;
+  return `${p.label}: ${p.lost} (No. ${p.number}), ${p.note}`;
+}
+
 const esc = (s: string) =>
   s.replace(
     /[&<>"']/g,
@@ -200,11 +259,19 @@ function htmlBody(r: RoundResult, to: Recipient): string {
     `<ul style="margin:0 0 16px;padding-left:20px">${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
   const picked = c.picked.length
     ? list(
-        c.picked.map(
-          (p) => `<span style="${mono};${muted}">No.&nbsp;${p.number}</span> ${esc(p.label)}`,
+        c.picked.map((p) =>
+          p.lost !== undefined
+            ? `${esc(p.label)}: ${p.lost} <span style="${mono};${muted}">(No.&nbsp;${esc(p.number)})</span>, ${p.note === "out" ? "<strong>out</strong>" : esc(p.note)}`
+            : `<span style="${mono};${muted}">No.&nbsp;${p.number}</span> ${esc(p.label)}`,
         ),
       )
     : `<p style="${muted}">(none)</p>`;
+  let out = "";
+  if (c.out) {
+    out = c.out.length
+      ? `<h2 style="font-size:15px;margin:16px 0 8px">Out this round</h2>${list(c.out.map((l) => `<strong>${esc(l)}</strong>`))}`
+      : `<p style="margin:16px 0"><strong>Nobody is out this round:</strong> every name that lost a ticket still has one left.</p>`;
+  }
   let remaining = "";
   if (c.showRemaining) {
     const items = c.shown.map((e) => `${esc(e.label)}${esc(e.extra)}`);
@@ -216,7 +283,7 @@ function htmlBody(r: RoundResult, to: Recipient): string {
 <div style="max-width:560px">
 <h1 style="font-size:20px;margin:0 0 4px">${esc(c.title)}</h1>
 <p style="margin:0 0 16px;${muted}">${esc(c.drawnLine)}</p>
-<h2 style="font-size:15px;margin:16px 0 8px">${esc(c.pickedHeading)}</h2>
+${out}<h2 style="font-size:15px;margin:16px 0 8px">${esc(c.pickedHeading)}</h2>
 ${picked}${remaining}
 <p style="margin:16px 0">${esc(c.status)}</p>
 <p style="margin:16px 0"><a href="${esc(c.raffleLink)}">Open the raffle</a> &middot; <a href="${esc(c.verifyLink)}">Check this ${r.raffle.recurring ? "round" : "draw"} yourself</a></p>

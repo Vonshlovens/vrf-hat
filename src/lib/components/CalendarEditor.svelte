@@ -18,6 +18,7 @@
     weekdayOf,
     type Calendar,
     type CalendarEnd,
+    type WeeklyRule,
   } from "#lib/draw/calendar.ts";
   import { formatDay, formatTime, planRows } from "#lib/draw/plan.ts";
   import type { Hat } from "#lib/draw/rounds.ts";
@@ -60,9 +61,13 @@
   const today = $derived(toLocalDateTime(now, tz).slice(0, 10));
   const defaultTime = $derived(calendar.rules[0]?.time ?? calendar.dates[0]?.time ?? "19:00");
 
-  // Before there's a raffle, preview with a guessed number of names.
+  // Before there's a raffle, preview with a guessed hat. Names can hold
+  // several tickets, and the plan counts tickets, so ask for both.
   let guess = $state(20);
-  const previewHat = $derived(hat ?? { tickets: guess, names: guess });
+  let guessTickets = $state(20);
+  const previewHat = $derived(
+    hat ?? { names: Math.max(1, guess || 1), tickets: Math.max(guess || 1, guessTickets || 1) },
+  );
 
   const occ = $derived(occurrences(calendar));
   const bounded = $derived(isBounded(calendar));
@@ -196,6 +201,44 @@
   }
 
   // ----------------------------------------------------------- rules
+  const dayText = (date: string) => formatDay(new Date(dayNumber(date) * 86_400_000), "UTC", now);
+
+  /** The day a rule first draws: its weekday, on or after its start. */
+  function firstDay(rule: WeeklyRule): number {
+    const s = dayNumber(rule.start);
+    return Number.isNaN(s) ? NaN : s + ((rule.weekday - weekdayOf(s) + 7) % 7);
+  }
+
+  /**
+   * For "every 2nd Friday" and the like, which Fridays is the whole question,
+   * so the host picks the first one from real dates instead of a start date
+   * that decides it silently.
+   */
+  function firstChoices(rule: WeeklyRule): string[] {
+    const t = dayNumber(today);
+    const next = t + ((rule.weekday - weekdayOf(t) + 7) % 7);
+    const out = Array.from({ length: Math.max(4, rule.every * 2) }, (_, k) => dayString(next + 7 * k));
+    const current = firstDay(rule);
+    if (!Number.isNaN(current) && !out.includes(dayString(current))) out.unshift(dayString(current));
+    return out;
+  }
+
+  const nextText = (next: string[]) =>
+    next.length ? `Next: ${next.map(dayText).join(", ")}${next.length === 3 ? "…" : ""}` : "No dates before the end.";
+
+  /** A rule's next few planned dates (not skipped, before the end). */
+  function upcoming(rule: WeeklyRule, n = 3): string[] {
+    const first = firstDay(rule);
+    if (Number.isNaN(first)) return [];
+    const out: string[] = [];
+    for (let k = 0, d = first; k < 400 && out.length < n; k++, d += 7 * rule.every) {
+      const date = dayString(d);
+      if (date < today || skipped.has(date)) continue;
+      if (!byDay.get(date)?.rule) break;
+      out.push(date);
+    }
+    return out;
+  }
   function addRule() {
     const start = today;
     calendar.rules = [
@@ -255,8 +298,22 @@
           <span class="rule-part">
             <label for="{id}-time-{i}">at</label>
             <input class="input time" id="{id}-time-{i}" type="time" required bind:value={rule.time} />
-            <label for="{id}-start-{i}">from</label>
-            <input class="input date" id="{id}-start-{i}" type="date" required bind:value={rule.start} />
+            {#if rule.every > 1}
+              <label for="{id}-start-{i}">first one</label>
+              <select
+                class="select"
+                id="{id}-start-{i}"
+                value={dayString(firstDay(rule))}
+                onchange={(e) => (rule.start = e.currentTarget.value)}
+              >
+                {#each firstChoices(rule) as d (d)}
+                  <option value={d}>{dayText(d)}</option>
+                {/each}
+              </select>
+            {:else}
+              <label for="{id}-start-{i}">from</label>
+              <input class="input date" id="{id}-start-{i}" type="date" required bind:value={rule.start} />
+            {/if}
           </span>
           <button
             type="button"
@@ -264,6 +321,7 @@
             aria-label="Remove {rule.every === 1 ? 'every' : `every ${ordinal(rule.every)}`} {WEEKDAY_NAMES[rule.weekday]}"
             onclick={() => (calendar.rules = calendar.rules.filter((_, j) => j !== i))}>Remove</button
           >
+          <span class="rule-next hint">{nextText(upcoming(rule))}</span>
         </li>
       {/each}
     </ul>
@@ -422,7 +480,7 @@
       <input type="hidden" name="winnerCount" value={winnerCount || "1"} />
       {#if eliminate}
         <p class="hint">
-          Shared out over the draws so {keepCount} {keepCount === 1 ? "is" : "are"} left after the last one. Earlier draws
+          Shared out over the draws so {keepCount} {keepCount === 1 ? "ticket is" : "tickets are"} left after the last one. Earlier draws
           take any extra. Re-worked at every draw, so late entries still count.
         </p>
       {:else}
@@ -447,7 +505,7 @@
   <div class="field">
     <span class="field-label" id="{id}-plan-label">The plan</span>
     {#if !hat}
-      <span class="inline-num">
+      <span class="inline-num guess">
         <span class="hint">If</span>
         <input
           class="input num count"
@@ -457,7 +515,16 @@
           bind:value={guess}
           aria-label="Names to plan for"
         />
-        <span class="hint">names enter</span>
+        <span class="hint">names enter with</span>
+        <input
+          class="input num count"
+          type="number"
+          min="1"
+          max="10000"
+          bind:value={guessTickets}
+          aria-label="Tickets in all to plan for"
+        />
+        <span class="hint">tickets in all</span>
       </span>
     {/if}
     {#if noDates}
@@ -550,6 +617,13 @@
     gap: 1ch;
   }
   .inline-num .hint {
+    margin: 0;
+  }
+  .inline-num.guess {
+    flex-wrap: wrap;
+  }
+  .rule-next {
+    flex-basis: 100%;
     margin: 0;
   }
   .segmented {
