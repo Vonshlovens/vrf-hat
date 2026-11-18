@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import CalendarEditor from "#lib/components/CalendarEditor.svelte";
+  import { starterCalendar, type Calendar } from "#lib/draw/calendar.ts";
 
   let { data, form } = $props();
 
@@ -12,6 +14,17 @@
   let firstDrawAt = $state(form?.firstDrawAt ?? "");
   // svelte-ignore state_referenced_locally
   let timezone = $state(form?.timezone ?? "");
+  // svelte-ignore state_referenced_locally
+  let winnerCount = $state(form?.winnerCount || "1");
+  // svelte-ignore state_referenced_locally
+  let keepCount = $state(form?.keepCount || "1");
+  // svelte-ignore state_referenced_locally
+  let returnPicked = $state(form?.returnPicked ?? false);
+  // svelte-ignore state_referenced_locally
+  let pickPlan = $state<"fixed" | "spread">(form?.pickPlan === "spread" ? "spread" : "fixed");
+  // svelte-ignore state_referenced_locally
+  let pickTotal = $state(form?.pickTotal || "");
+  let calendar = $state<Calendar | null>(null);
   let earliest = $state("");
 
   const eliminate = $derived(mode === "eliminate");
@@ -29,6 +42,13 @@
       d.setMinutes(0, 0, 0);
       firstDrawAt = localValue(d);
     }
+    let echoed: Calendar | null = null;
+    try {
+      echoed = form?.calendar ? JSON.parse(form.calendar) : null;
+    } catch {
+      // Start over with the default.
+    }
+    calendar = echoed ?? starterCalendar(earliest.slice(0, 10));
   });
 </script>
 
@@ -94,25 +114,14 @@
     </div>
 
     <div class="field">
-      <label for="winnerCount">{eliminate ? "Eliminated" : "Winners"} per draw</label>
-      <input
-        class="input num count"
-        id="winnerCount"
-        name="winnerCount"
-        type="number"
-        min="1"
-        max="100"
-        required
-        value={form?.winnerCount ?? "1"}
-      />
-    </div>
-
-    <div class="field">
       <span class="field-label" id="cadence-label">Draw</span>
       <fieldset class="segmented" aria-labelledby="cadence-label">
         <label><input type="radio" name="cadence" value="once" bind:group={cadence} /><span>Once</span></label>
         <label>
-          <input type="radio" name="cadence" value="scheduled" bind:group={cadence} /><span>On a schedule</span>
+          <input type="radio" name="cadence" value="calendar" bind:group={cadence} /><span>On set dates</span>
+        </label>
+        <label>
+          <input type="radio" name="cadence" value="scheduled" bind:group={cadence} /><span>At an interval</span>
         </label>
         <label>
           <input type="radio" name="cadence" value="manual" bind:group={cadence} /><span>Whenever I say</span>
@@ -120,8 +129,28 @@
       </fieldset>
       {#if cadence === "manual"}
         <p class="hint">Round after round, each started by you.</p>
+      {:else if cadence === "calendar"}
+        <p class="hint">Pick weekdays and dates on a calendar.</p>
+      {:else if cadence === "scheduled"}
+        <p class="hint">Every so many hours, days or weeks.</p>
       {/if}
     </div>
+
+    {#if cadence !== "calendar"}
+      <div class="field">
+        <label for="winnerCount">{eliminate ? "Eliminated" : "Winners"} per draw</label>
+        <input
+          class="input num count"
+          id="winnerCount"
+          name="winnerCount"
+          type="number"
+          min="1"
+          max="100"
+          required
+          bind:value={winnerCount}
+        />
+      </div>
+    {/if}
 
     {#if cadence === "scheduled"}
       <div class="field">
@@ -173,34 +202,54 @@
             min="1"
             max="1000"
             required
-            value={form?.keepCount || "1"}
+            bind:value={keepCount}
           />
         </div>
       {:else}
         <label class="check">
-          <input name="returnPicked" type="checkbox" checked={form?.returnPicked ?? false} />
+          <input name="returnPicked" type="checkbox" bind:checked={returnPicked} />
           <span>
             Winners go back in the hat
             <span class="hint">Otherwise a winning ticket sits out the later draws.</span>
           </span>
         </label>
       {/if}
-      <div class="field">
-        <label for="maxDraws">Stop after this many draws <span class="optional">optional</span></label>
-        <input
-          class="input num count"
-          id="maxDraws"
-          name="maxDraws"
-          type="number"
-          min="1"
-          max="1000"
-          value={form?.maxDraws ?? ""}
-          aria-describedby="max-hint"
+      {#if cadence !== "calendar"}
+        <div class="field">
+          <label for="maxDraws">Stop after this many draws <span class="optional">optional</span></label>
+          <input
+            class="input num count"
+            id="maxDraws"
+            name="maxDraws"
+            type="number"
+            min="1"
+            max="1000"
+            value={form?.maxDraws ?? ""}
+            aria-describedby="max-hint"
+          />
+          <p class="hint" id="max-hint">
+            {eliminate ? "Blank: keep going until that many names are left." : "Blank: keep going until the hat is empty or you end it."}
+          </p>
+        </div>
+      {/if}
+    {/if}
+
+    {#if cadence === "calendar"}
+      {#if calendar && timezone}
+        <CalendarEditor
+          bind:calendar
+          bind:pickPlan
+          bind:pickTotal
+          bind:winnerCount
+          {timezone}
+          mode={eliminate ? "eliminate" : "win"}
+          keepCount={Math.max(1, Number(keepCount) || 1)}
+          {returnPicked}
+          id="new-cal"
         />
-        <p class="hint" id="max-hint">
-          {eliminate ? "Blank: keep going until that many names are left." : "Blank: keep going until the hat is empty or you end it."}
-        </p>
-      </div>
+      {:else}
+        <p class="hint">Loading the calendar…</p>
+      {/if}
     {/if}
 
     <label class="check">
@@ -233,6 +282,7 @@
   }
   .segmented {
     justify-self: start;
+    flex-wrap: wrap;
     max-width: 100%;
   }
 </style>

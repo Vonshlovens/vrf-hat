@@ -4,6 +4,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -12,6 +13,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { Calendar } from "../../draw/calendar.ts";
 import { organization, user } from "./auth.schema.ts";
 
 export * from "./auth.schema.ts";
@@ -27,6 +29,14 @@ export const raffleStatus = pgEnum("raffle_status", ["open", "requested", "drawn
 export const raffleMode = pgEnum("raffle_mode", ["win", "eliminate"]);
 
 export const repeatUnit = pgEnum("repeat_unit", ["hour", "day", "week"]);
+
+/**
+ * fixed  – every draw pulls `winner_count`
+ * spread – the draws left on the calendar share out what's still to pull, so
+ *          an elimination lands on `keep_count` (or a win raffle on
+ *          `pick_total` winners) on the last planned date
+ */
+export const pickPlan = pgEnum("pick_plan", ["fixed", "spread"]);
 
 export const raffle = pgTable(
   "raffle",
@@ -55,10 +65,16 @@ export const raffle = pgTable(
 
     /** More than one draw. After each round the raffle reopens until it finishes. */
     recurring: boolean("recurring").notNull().default(false),
-    /** Schedule for a repeating raffle; all null when the host starts each round by hand. */
+    /**
+     * Schedule for a repeating raffle; all null when the host starts each
+     * round by hand. Either a fixed interval (`repeatEvery` + `repeatUnit`) or
+     * a `calendar` of weekly rules and dates; `nextDrawAt` is the next slot of
+     * whichever is set.
+     */
     repeatEvery: integer("repeat_every"),
     repeatUnit: repeatUnit("repeat_unit"),
     /** IANA zone the schedule keeps wall-clock time in. */
+    calendar: jsonb("calendar").$type<Calendar>(),
     timezone: text("timezone"),
     nextDrawAt: timestamp("next_draw_at", { withTimezone: true }),
     /** Finish after this many draws. Null: run until the hat runs out. */
@@ -67,6 +83,9 @@ export const raffle = pgTable(
     returnPicked: boolean("return_picked").notNull().default(false),
     /** `eliminate` mode: a repeating raffle finishes when this many names are left. */
     keepCount: integer("keep_count").notNull().default(1),
+    pickPlan: pickPlan("pick_plan").notNull().default("fixed"),
+    /** `win` + `spread`: winners to pull over the whole raffle. */
+    pickTotal: integer("pick_total"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

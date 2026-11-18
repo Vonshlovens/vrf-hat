@@ -74,6 +74,8 @@ describe("rounds", () => {
     keepCount: 1,
     returnPicked: false,
     maxDraws: null,
+    pickPlan: "fixed",
+    pickTotal: null,
     ...over,
   });
 

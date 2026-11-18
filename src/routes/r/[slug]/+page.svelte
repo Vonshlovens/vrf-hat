@@ -3,9 +3,11 @@
   import { enhance } from "$app/forms";
   import { refreshAll } from "$app/navigation";
   import { page } from "$app/state";
+  import CalendarEditor from "#lib/components/CalendarEditor.svelte";
   import ResultEmails from "#lib/components/ResultEmails.svelte";
   import Ticket from "#lib/components/Ticket.svelte";
-  import { describeRepeat } from "#lib/draw/schedule.ts";
+  import { starterCalendar, type Calendar } from "#lib/draw/calendar.ts";
+  import { describeRepeat, toLocalDateTime } from "#lib/draw/schedule.ts";
   import ImportNames from "./ImportNames.svelte";
 
   let { data, form } = $props();
@@ -26,7 +28,16 @@
   const numbered = $derived(data.entries.some((e) => e.numbers !== null));
   const zone = $derived(raffle.timezone ?? browserZone);
   // svelte-ignore state_referenced_locally
-  let timing = $state(scheduled ? "scheduled" : "manual");
+  let timing = $state(raffle.calendar ? "calendar" : scheduled ? "scheduled" : "manual");
+  // The schedule editor's working copy; set once the browser's zone is known.
+  let calendar = $state<Calendar | null>(null);
+  // svelte-ignore state_referenced_locally
+  let pickPlan = $state<"fixed" | "spread">(raffle.pickPlan);
+  // svelte-ignore state_referenced_locally
+  let pickTotal = $state(raffle.pickTotal ? String(raffle.pickTotal) : "");
+  // svelte-ignore state_referenced_locally
+  let winnerCount = $state(String(raffle.winnerCount));
+  const spread = $derived(raffle.pickPlan === "spread" && raffle.calendar !== null);
 
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   const noun = $derived(eliminate ? "elimination" : "winner");
@@ -45,8 +56,11 @@
   const statusTone = { open: "idle", requested: "run", drawn: "ok" } as const;
 
   const rule = $derived.by(() => {
-    const parts = [`${plural(raffle.winnerCount, noun)}${raffle.recurring ? " per draw" : ""}`];
-    if (raffle.repeatEvery && raffle.repeatUnit) parts.push(describeRepeat(raffle.repeatEvery, raffle.repeatUnit));
+    const parts = spread
+      ? [eliminate ? "eliminations worked out per draw" : `${plural(raffle.pickTotal ?? 0, noun)} in all`]
+      : [`${plural(raffle.winnerCount, noun)}${raffle.recurring ? " per draw" : ""}`];
+    if (raffle.calendarText) parts.push(raffle.calendarText);
+    else if (raffle.repeatEvery && raffle.repeatUnit) parts.push(describeRepeat(raffle.repeatEvery, raffle.repeatUnit));
     if (raffle.recurring && eliminate) parts.push(`until ${raffle.keepCount} left`);
     if (raffle.maxDraws) parts.push(`${plural(raffle.maxDraws, "draw")} at most`);
     return parts.join(" · ");
@@ -54,6 +68,10 @@
 
   onMount(() => {
     browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const tz = raffle.timezone ?? browserZone;
+    calendar = raffle.calendar
+      ? structuredClone($state.snapshot(raffle.calendar))
+      : starterCalendar(toLocalDateTime(new Date(), tz).slice(0, 10));
   });
 
   // Wake up when a scheduled draw comes due.
@@ -136,6 +154,35 @@
         </span>
       {/if}
     </p>
+  {/if}
+
+  {#if data.plan.rows.length && raffle.status !== "drawn"}
+    <section class="block" aria-labelledby="plan-head">
+      <h2 class="h3 label" id="plan-head">Coming up</h2>
+      <ol class="plan upcoming">
+        {#each data.plan.rows as row (row.at)}
+          <li data-state={row.picks === 0 ? "done" : undefined}>
+            <time class="plan-day" datetime={row.at}>{row.day}</time>
+            <span class="plan-text">
+              {row.time} · {#if row.picks === 0}<span class="status" data-tone="idle">skipped</span>{:else}{row.text}{/if}
+            </span>
+          </li>
+        {/each}
+      </ol>
+      {#if data.plan.more}
+        <p class="hint">…and {plural(data.plan.more, "more draw")}, the last on {data.plan.last}.</p>
+      {/if}
+      {#if spread}
+        <p class="hint">
+          {#if eliminate}
+            Worked out so {plural(raffle.keepCount, "name")} {raffle.keepCount === 1 ? "is" : "are"} left after the last
+            draw, and re-worked at every draw from whoever is in the hat.
+          {:else}
+            {plural(raffle.pickTotal ?? 0, "winner")} shared out over the draws; re-worked at every draw.
+          {/if}
+        </p>
+      {/if}
+    </section>
   {/if}
 
   {#if raffle.status === "requested"}
@@ -246,8 +293,12 @@
               {:else if data.nextPicks === 0}
                 {#if !raffle.recurring}
                   Needs {plural(raffle.winnerCount - data.hat.tickets, "more ticket")}.
+                {:else if eliminate && data.hat.names > raffle.keepCount}
+                  Nothing to eliminate at this draw.
                 {:else if eliminate}
                   Needs more than {plural(raffle.keepCount, "name")} in the hat.
+                {:else if spread && data.hat.tickets > 0}
+                  Every winner has been drawn.
                 {:else}
                   The hat is empty.
                 {/if}
@@ -270,12 +321,34 @@
             <fieldset class="segmented">
               <legend>When to draw</legend>
               <label>
-                <input type="radio" name="timing" value="scheduled" bind:group={timing} /><span>On a schedule</span>
+                <input type="radio" name="timing" value="calendar" bind:group={timing} /><span>On set dates</span>
+              </label>
+              <label>
+                <input type="radio" name="timing" value="scheduled" bind:group={timing} /><span>At an interval</span>
               </label>
               <label>
                 <input type="radio" name="timing" value="manual" bind:group={timing} /><span>Whenever I say</span>
               </label>
             </fieldset>
+            {#if timing === "calendar"}
+              {#if calendar}
+                <CalendarEditor
+                  bind:calendar
+                  bind:pickPlan
+                  bind:pickTotal
+                  bind:winnerCount
+                  timezone={zone}
+                  mode={raffle.mode}
+                  keepCount={raffle.keepCount}
+                  returnPicked={raffle.returnPicked}
+                  hat={data.hat}
+                  pulled={data.pulled}
+                  id="sched-cal"
+                />
+              {/if}
+            {:else}
+              <input type="hidden" name="winnerCount" value={raffle.winnerCount} />
+            {/if}
             {#if timing === "scheduled"}
               <div class="field">
                 <label for="firstDrawAt">Next draw</label>
@@ -540,6 +613,24 @@
   }
   .sched .segmented {
     justify-self: start;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .upcoming {
+    border-top: var(--rule-w) solid var(--rule);
+    max-width: 48ch;
+  }
+  .upcoming li {
+    grid-template-columns: 14ch minmax(0, 1fr);
+    padding-inline: 0;
+  }
+  .plan-day {
+    font-weight: var(--fw-bold);
+    white-space: nowrap;
+  }
+  .upcoming li[data-state="done"] .plan-day {
+    color: var(--ink-3);
+    font-weight: var(--fw-regular);
   }
   .when {
     max-width: 28ch;

@@ -16,18 +16,25 @@ export function isTimeZone(tz: string): boolean {
   }
 }
 
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
 /** The wall clock in `tz` at `instant`, as if it were a UTC timestamp. */
 function wallClock(instant: number, tz: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-  }).formatToParts(instant);
+  let f = formatters.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    });
+    formatters.set(tz, f);
+  }
+  const parts = f.formatToParts(instant);
   const n = (type: string) => Number(parts.find((p) => p.type === type)!.value);
   return Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute"), n("second"));
 }
