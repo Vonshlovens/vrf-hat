@@ -37,3 +37,27 @@ export function sendInvitationEmail(
     `${invite.inviterName} invited you to ${invite.orgName} on VRF Hat. Members can see and enter its raffles.\n\n${invite.url}\n\nSign in with this email address (${to}) to accept. The invitation expires in 7 days. If you weren't expecting it, ignore this email.`,
   );
 }
+
+type BatchMessage = { to: string; subject: string; text: string; html?: string };
+
+/**
+ * Sends many emails, each to one address, through Resend's batch endpoint
+ * (up to 100 per call, so a big list costs few subrequests). Logs them
+ * instead when no key is set. Gives up on a call after `timeoutMs`.
+ */
+export async function sendBatch(messages: BatchMessage[], timeoutMs = 10_000) {
+  if (!RESEND_API_KEY) {
+    for (const m of messages) console.log(`\n[email] ${m.to}: ${m.subject}\n${m.text}\n`);
+    return;
+  }
+  const from = EMAIL_FROM ?? "VRF Hat <onboarding@resend.dev>";
+  for (let i = 0; i < messages.length; i += 100) {
+    const res = await fetch("https://api.resend.com/emails/batch", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(messages.slice(i, i + 100).map((m) => ({ from, ...m }))),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) throw new Error(`Resend returned ${res.status}: ${await res.text()}`);
+  }
+}

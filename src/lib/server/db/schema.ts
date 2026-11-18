@@ -129,6 +129,8 @@ export const draw = pgTable(
     // Set when VRF answers.
     randomWord: text("random_word"),
     drawnAt: timestamp("drawn_at", { withTimezone: true }),
+    /** Claimed just before the round's result email goes out, so it goes once. */
+    resultsEmailedAt: timestamp("results_emailed_at", { withTimezone: true }),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -157,6 +159,31 @@ export const drawSlot = pgTable(
     primaryKey({ columns: [t.drawId, t.position] }),
     index("draw_slot_entry_idx").on(t.entryId),
   ],
+);
+
+/** Who gets an email after each round. No row: just the host. */
+export const resultEmailSettings = pgTable("result_email_settings", {
+  raffleId: uuid("raffle_id")
+    .primaryKey()
+    .references(() => raffle.id, { onDelete: "cascade" }),
+  emailHost: boolean("email_host").notNull().default(true),
+  /** Organization raffles only: every member of the organization. */
+  emailMembers: boolean("email_members").notNull().default(false),
+});
+
+/** Extra addresses the host added for a raffle's result emails. Only the host sees them. */
+export const resultRecipient = pgTable(
+  "result_recipient",
+  {
+    raffleId: uuid("raffle_id")
+      .notNull()
+      .references(() => raffle.id, { onDelete: "cascade" }),
+    /** Lowercased. */
+    email: text("email").notNull(),
+    addedBy: text("added_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.raffleId, t.email] })],
 );
 
 export type Raffle = typeof raffle.$inferSelect;
