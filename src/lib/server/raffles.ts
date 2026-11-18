@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNotNull, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { toHex, type Hex } from "viem";
 import { PUBLIC_CHAIN_ID, PUBLIC_RAFFLE_CONTRACT } from "$app/env/public";
 import { chainInfo } from "#lib/chain/chains.ts";
@@ -10,6 +10,15 @@ import {
 } from "#lib/draw/commitment.ts";
 import { isFinished, parseNameLine, picksFor, removesPicked, type Hat } from "#lib/draw/rounds.ts";
 import { nextAfter } from "#lib/draw/schedule.ts";
+import {
+  MAX_IMPORT_CHARS,
+  importError,
+  parseTable,
+  suggestColumns,
+  toEntries,
+  type Columns,
+  type Limits,
+} from "#lib/import/table.ts";
 import { pickWinners } from "#lib/draw/winners.ts";
 import { db } from "./db/index.ts";
 import {
@@ -32,6 +41,8 @@ export class CannotDraw extends RaffleError {}
 /** The contract's MAX_ENTRANTS. */
 export const MAX_TICKETS = 10_000;
 export const MAX_TICKETS_PER_NAME = 1_000;
+/** Most names one "Add names" or import adds; each is its own write. */
+export const MAX_NAMES_PER_ADD = 500;
 /** A round whose request never left the server is dropped after this long. */
 const ABANDONED_AFTER_MS = 10 * 60_000;
 
@@ -181,21 +192,75 @@ export async function addEntry(
 
 /** Names one per line or comma-separated; "Name x3" gives that name three tickets. */
 export async function addNames(r: Raffle, text: string) {
+  return addEntries(r, text.split(/\r?\n|,/).map(parseNameLine));
+}
+
+/**
+ * Imports entrants from CSV or pasted spreadsheet text. The text is parsed
+ * again here; the browser's preview only suggests the columns.
+ */
+export async function importNames(r: Raffle, text: string, choice: Partial<Columns> = {}) {
+  if (text.length > MAX_IMPORT_CHARS)
+    throw new RaffleError("That's too much to import; keep it under 1 MB.");
+  const table = parseTable(text);
+  if (table.rows.length === 0) throw new RaffleError("There's nothing to import.");
+  const cols = { ...suggestColumns(table), ...choice };
+  const inRange = (i: number) => Number.isInteger(i) && i >= 0 && i < table.width;
+  if (!inRange(cols.name) || (cols.count !== null && !inRange(cols.count))) {
+    throw new RaffleError("Pick a column from the table.");
+  }
+  if (cols.count === cols.name)
+    throw new RaffleError("Pick different columns for names and tickets.");
+  const result = toEntries(table, cols);
+  const problem = importError(result, limits((await hatOf(r)).tickets));
+  if (problem) throw new RaffleError(problem);
+  return { ...(await addEntries(r, result.entries)), skipped: result.skipped };
+}
+
+const limits = (inHat?: number): Limits => ({
+  perName: MAX_TICKETS_PER_NAME,
+  total: MAX_TICKETS,
+  names: MAX_NAMES_PER_ADD,
+  inHat,
+});
+
+/**
+ * Adds host-typed names, merging duplicates. Every limit is checked before
+ * anything is written, counting the tickets a name already holds.
+ */
+async function addEntries(r: Raffle, list: { label: string; count: number }[]) {
   const wanted = new Map<string, number>();
-  for (const line of text.split(/\r?\n|,/)) {
-    const parsed = parseNameLine(line);
-    const label = normalizeLabel(parsed.label);
-    if (!label) continue;
-    wanted.set(label, (wanted.get(label) ?? 0) + parsed.count);
+  for (const e of list) {
+    const label = normalizeLabel(e.label);
+    if (label) wanted.set(label, (wanted.get(label) ?? 0) + e.count);
   }
   if (wanted.size === 0) throw new RaffleError("Enter at least one name.");
-  if (wanted.size > 500) throw new RaffleError("Add at most 500 names at a time.");
-  for (const n of wanted.values()) checkCount(n);
-  let tickets = 0;
-  for (const [label, n] of wanted) {
-    await addEntry(r, { userId: null, label, count: n });
-    tickets += n;
+  if (wanted.size > MAX_NAMES_PER_ADD) {
+    throw new RaffleError(`Add at most ${MAX_NAMES_PER_ADD} names at a time.`);
   }
+  for (const n of wanted.values()) checkCount(n);
+  const held = new Map(
+    (
+      await db
+        .select({ label: entry.label, count: entry.count })
+        .from(entry)
+        .where(
+          and(
+            eq(entry.raffleId, r.id),
+            isNull(entry.userId),
+            inArray(entry.label, [...wanted.keys()]),
+          ),
+        )
+    ).map((h) => [h.label, h.count]),
+  );
+  const tickets = [...wanted.values()].reduce((sum, n) => sum + n, 0);
+  const after = [...wanted].map(([label, n]) => ({ label, count: n + (held.get(label) ?? 0) }));
+  const problem = importError(
+    { entries: after, tickets, skipped: 0, problems: [] },
+    limits((await hatOf(r)).tickets),
+  );
+  if (problem) throw new RaffleError(problem);
+  for (const [label, n] of wanted) await addEntry(r, { userId: null, label, count: n });
   return { names: wanted.size, tickets };
 }
 

@@ -5,6 +5,7 @@
   import { page } from "$app/state";
   import Ticket from "#lib/components/Ticket.svelte";
   import { describeRepeat } from "#lib/draw/schedule.ts";
+  import ImportNames from "./ImportNames.svelte";
 
   let { data, form } = $props();
   let drawing = $state(false);
@@ -213,6 +214,8 @@
           {/if}
         </div>
       </form>
+
+      <ImportNames limits={{ ...data.limits, inHat: data.hat.tickets }} imported={form?.imported} />
 
       {#if data.drawsEnabled}
         <form
