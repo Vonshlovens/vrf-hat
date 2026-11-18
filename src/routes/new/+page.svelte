@@ -193,7 +193,7 @@
     {#if recurring}
       {#if eliminate}
         <div class="field">
-          <label for="keepCount">Stop when this many names are left</label>
+          <label for="keepCount">Stop when this many tickets are left</label>
           <input
             class="input num count"
             id="keepCount"
@@ -228,7 +228,7 @@
             aria-describedby="max-hint"
           />
           <p class="hint" id="max-hint">
-            {eliminate ? "Blank: keep going until that many names are left." : "Blank: keep going until the hat is empty or you end it."}
+            {eliminate ? "Blank: keep going until that many tickets are left." : "Blank: keep going until the hat is empty or you end it."}
           </p>
         </div>
       {/if}

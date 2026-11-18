@@ -68,12 +68,15 @@
         draw's on-chain key, so a list of eliminations can't be passed off as a list of winners.
       </p>
       <p>
-        <strong>Repeat draws.</strong> A raffle can draw once, on a schedule, or whenever the host says.
+        <strong>Repeat draws.</strong> A raffle can draw once, on a schedule (set dates on a calendar, or a
+        fixed interval), or whenever the host says. With a calendar, the app can work out how many tickets
+        each date pulls so the last date lands exactly on the number to keep.
         Every round is its own sealed list and its own Chainlink number, with its own verify page. Between
         rounds the hat reopens, so names and tickets can be added. A pulled ticket stays out of later
         rounds unless the host chose to put winners back. A scheduled round that finds too few tickets is
         skipped. The raffle finishes when the hat runs out, when an elimination is down to the number of
-        names to keep, after a set number of draws, or when the host ends it.
+        tickets to keep (so at most that many names, fewer if one holds several of the last tickets) or
+        to a single name, after a set number of draws, or when the host ends it.
       </p>
     </div>
   </section>

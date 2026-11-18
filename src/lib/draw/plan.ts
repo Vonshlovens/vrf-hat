@@ -7,7 +7,7 @@ export type PlanRow = {
   at: Date;
   /** Tickets pulled; 0: the draw will be skipped. */
   picks: number;
-  namesLeft: number;
+  ticketsLeft: number;
   /** "4 out · 16 left", "3 winners", "skipped". */
   text: string;
 };
@@ -27,21 +27,22 @@ export function planRows(
   const draws = planDraws(rules, hat, dates.length, pulled);
   const multi = hat.tickets !== hat.names;
   return dates.map((at, i) => {
-    const { picks, namesLeft } = draws[i];
-    return { at, picks, namesLeft, text: pickText(r.mode, picks, namesLeft, multi) };
+    const { picks, ticketsLeft } = draws[i];
+    return { at, picks, ticketsLeft, text: pickText(r.mode, picks, ticketsLeft, multi) };
   });
 }
 
 export function pickText(
   mode: RoundRules["mode"],
   picks: number,
-  namesLeft: number,
+  ticketsLeft: number,
   multiTicket = false,
 ): string {
   if (picks === 0) return "skipped";
   if (mode === "win") return picks === 1 ? "1 winner" : `${picks} winners`;
-  const out = multiTicket ? `${picks} ${picks === 1 ? "ticket" : "tickets"} out` : `${picks} out`;
-  return `${out} · ${namesLeft} left`;
+  if (!multiTicket) return `${picks} out · ${ticketsLeft} left`;
+  const t = (n: number) => `${n} ${n === 1 ? "ticket" : "tickets"}`;
+  return `${t(picks)} out · ${t(ticketsLeft)} left`;
 }
 
 /** "Wed 3 Dec" (with the year when it isn't this year's). */

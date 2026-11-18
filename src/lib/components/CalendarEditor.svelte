@@ -368,7 +368,7 @@
         <label><input type="radio" value="count" bind:group={endKind} /><span>After a number of draws</span></label>
         <label>
           <input type="radio" value="none" bind:group={endKind} /><span
-            >{eliminate ? `When ${keepCount} ${keepCount === 1 ? "is" : "are"} left` : "When the hat is empty"}</span
+            >{eliminate ? `When ${keepCount} ${keepCount === 1 ? "ticket is" : "tickets are"} left` : "When the hat is empty"}</span
           >
         </label>
       </fieldset>
@@ -482,9 +482,9 @@
           …and {rows.length - SHOWN} more{lastRow && bounded ? `, the last on ${formatDay(lastRow.at, tz, now)}` : ""}.
         </p>
       {/if}
-      {#if eliminate && lastRow && lastRow.namesLeft > keepCount}
+      {#if eliminate && lastRow && lastRow.ticketsLeft > keepCount}
         <p class="hint">
-          At this pace {lastRow.namesLeft} would still be in after the last date. {spread
+          At this pace {lastRow.ticketsLeft} tickets would still be in after the last date. {spread
             ? ""
             : "Choose “work it out for me” to land on the target."}
         </p>

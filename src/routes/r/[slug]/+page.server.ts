@@ -146,7 +146,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       })),
       more: Math.max(0, planned.length - PLAN_SHOWN),
       last: planned.length ? formatDay(planned.at(-1)!.at, tz, now) : null,
-      namesLeftAtEnd: planned.at(-1)?.namesLeft ?? null,
     },
     rounds: rounds.map(({ draw, pulled }) => ({
       round: draw.round,

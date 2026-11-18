@@ -205,7 +205,7 @@ describe("spreading picks", () => {
   it("eliminates down to the target exactly on the last draw", () => {
     const plan = planDraws(elim(), { tickets: 20, names: 20 }, 5);
     expect(plan.map((p) => p.picks)).toEqual([4, 4, 3, 3, 3]);
-    expect(plan.at(-1)!.namesLeft).toBe(3);
+    expect(plan.at(-1)!.ticketsLeft).toBe(3);
   });
 
   it("re-plans from the hat at every draw", () => {
@@ -223,7 +223,7 @@ describe("spreading picks", () => {
   it("skips draws when there are fewer names than draws", () => {
     const plan = planDraws(elim(), { tickets: 5, names: 5 }, 4);
     expect(plan.map((p) => p.picks)).toEqual([0, 0, 1, 1]);
-    expect(plan.at(-1)!.namesLeft).toBe(3);
+    expect(plan.at(-1)!.ticketsLeft).toBe(3);
     expect(planDraws(elim(), { tickets: 2, names: 2 }, 3).map((p) => p.picks)).toEqual([0, 0, 0]);
   });
 
@@ -234,22 +234,58 @@ describe("spreading picks", () => {
     expect(picksFor(r, { tickets: 3, names: 3 }, { draws: 4, pulled: 0, byHand: true })).toBe(0);
   });
 
-  it("counts names, not tickets, and never cuts below the target", () => {
-    // 6 names holding 14 tickets: 3 names to go over 2 draws.
+  it("counts tickets (lives), not names, and never cuts below the target", () => {
+    // 6 names holding 14 tickets: 11 tickets to go over 2 draws.
     const r = elim();
-    expect(picksFor(r, { tickets: 14, names: 6 }, { draws: 2, pulled: 0 })).toBe(2);
-    expect(picksFor(r, { tickets: 14, names: 6 }, { draws: 1, pulled: 0 })).toBe(3);
+    expect(picksFor(r, { tickets: 14, names: 6 }, { draws: 2, pulled: 0 })).toBe(6);
+    expect(picksFor(r, { tickets: 14, names: 6 }, { draws: 1, pulled: 0 })).toBe(11);
   });
 
-  it("stays open when the calendar runs out above the target", () => {
+  it("finishes on the target tickets, with at most that many names", () => {
     const r = elim();
-    // A multi-ticket name survived the last pull: 4 names left, target 3.
-    expect(isFinished(r, { tickets: 6, names: 4 }, 5, { draws: 0, pulled: 0 })).toBe(false);
     expect(isFinished(r, { tickets: 3, names: 3 }, 5, { draws: 0, pulled: 0 })).toBe(true);
-    // Fixed picks just finish when the dates do.
+    // Team 7 holds two of the last three tickets: two names left, and that's done.
+    expect(isFinished(r, { tickets: 3, names: 2 }, 5, { draws: 0, pulled: 0 })).toBe(true);
+    expect(isFinished(r, { tickets: 4, names: 3 }, 5, { draws: 1, pulled: 0 })).toBe(false);
+    // Fixed picks finish when the dates do.
     const fixed = elim({ pickPlan: "fixed" });
     expect(isFinished(fixed, { tickets: 6, names: 4 }, 5, { draws: 0, pulled: 0 })).toBe(true);
     expect(isFinished(fixed, { tickets: 6, names: 4 }, 5, { draws: 2, pulled: 0 })).toBe(false);
+  });
+
+  it("always lands on the target, however the pulls fall across names", () => {
+    // Random hats of multi-ticket names, pulled at random, re-planned each draw
+    // the way the server does. The end must be exactly 3 tickets and <= 3 names.
+    let seed = 7;
+    const rand = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+    for (let trial = 0; trial < 200; trial++) {
+      const lives = Array.from(
+        { length: 4 + Math.floor(rand() * 30) },
+        () => 1 + Math.floor(rand() * 4),
+      );
+      const draws = 1 + Math.floor(rand() * 12);
+      const hat = () => ({
+        tickets: lives.reduce((a, b) => a + b, 0),
+        names: lives.filter((l) => l > 0).length,
+      });
+      for (let left = draws; left > 0; left--) {
+        let picks = picksFor(elim(), hat(), { draws: left, pulled: 0 });
+        while (picks-- > 0) {
+          // Pull one random ticket: a name loses a life.
+          let k = Math.floor(rand() * hat().tickets);
+          const i = lives.findIndex((l) => (k -= l) < 0);
+          lives[i]--;
+        }
+        if (left > 1)
+          expect(isFinished(elim(), hat(), draws - left + 1, { draws: left - 1, pulled: 0 })).toBe(
+            hat().names <= 1,
+          );
+      }
+      // Every hat starts with at least 4 tickets, so the end is exactly the target.
+      expect(hat().tickets).toBe(3);
+      expect(hat().names).toBeLessThanOrEqual(3);
+      expect(isFinished(elim(), hat(), draws, { draws: 0, pulled: 0 })).toBe(true);
+    }
   });
 
   const win = (over: Partial<RoundRules> = {}): RoundRules => ({

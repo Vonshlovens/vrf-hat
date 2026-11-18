@@ -175,8 +175,8 @@
       {#if spread}
         <p class="hint">
           {#if eliminate}
-            Worked out so {plural(raffle.keepCount, "name")} {raffle.keepCount === 1 ? "is" : "are"} left after the last
-            draw, and re-worked at every draw from whoever is in the hat.
+            Worked out so {plural(raffle.keepCount, "ticket")} {raffle.keepCount === 1 ? "is" : "are"} left after the last
+            draw, and re-worked at every draw from what's in the hat. A name is out when its last ticket is pulled.
           {:else}
             {plural(raffle.pickTotal ?? 0, "winner")} shared out over the draws; re-worked at every draw.
           {/if}
@@ -293,10 +293,10 @@
               {:else if data.nextPicks === 0}
                 {#if !raffle.recurring}
                   Needs {plural(raffle.winnerCount - data.hat.tickets, "more ticket")}.
-                {:else if eliminate && data.hat.names > raffle.keepCount}
+                {:else if eliminate && data.hat.tickets > raffle.keepCount && data.hat.names > 1}
                   Nothing to eliminate at this draw.
                 {:else if eliminate}
-                  Needs more than {plural(raffle.keepCount, "name")} in the hat.
+                  Needs more than {plural(raffle.keepCount, "ticket")} and more than one name in the hat.
                 {:else if spread && data.hat.tickets > 0}
                   Every winner has been drawn.
                 {:else}

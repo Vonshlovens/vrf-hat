@@ -173,7 +173,7 @@ export function parseRaffle(form: FormData): Parsed<RaffleSettings> {
   if (recurring && eliminate) {
     keepCount = whole(form, "keepCount");
     if (!(keepCount >= 1 && keepCount <= 1000)) {
-      return fail("Say how many names should be left standing (at least 1).");
+      return fail("Say how many tickets should be left standing (at least 1).");
     }
   }
 

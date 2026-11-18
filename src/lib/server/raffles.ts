@@ -403,7 +403,7 @@ export async function listRounds(r: Raffle) {
 function cantDrawReason(r: Raffle, hat: Hat, ctx: PlanContext) {
   if (r.pickPlan === "spread" && ctx.draws) {
     if (r.mode === "win" && ctx.pulled >= (r.pickTotal ?? 0)) return "Every winner has been drawn.";
-    if (hat.tickets > 0 && (r.mode === "win" || hat.names > r.keepCount)) {
+    if (hat.tickets > 0 && (r.mode === "win" || hat.tickets > r.keepCount)) {
       return "The plan has nobody to pull at this draw.";
     }
   }
@@ -413,7 +413,8 @@ function cantDrawReason(r: Raffle, hat: Hat, ctx: PlanContext) {
   }
   if (r.mode === "eliminate") {
     const keep = r.keepCount;
-    return `An elimination needs more than ${keep} ${keep === 1 ? "name" : "names"} in the hat.`;
+    if (hat.names <= 1) return "Only one name is left in the hat.";
+    return `An elimination needs more than ${keep} ${keep === 1 ? "ticket" : "tickets"} in the hat.`;
   }
   return hat.tickets === 0 ? "The hat is empty." : "There's nothing to draw.";
 }

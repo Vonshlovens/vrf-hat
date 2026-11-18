@@ -92,13 +92,19 @@ describe("rounds", () => {
     expect(isFinished(r, { tickets: 0, names: 0 }, 4)).toBe(true);
   });
 
-  it("an elimination never cuts below the names to keep", () => {
+  it("an elimination never cuts below the tickets to keep", () => {
     const r = rules({ mode: "eliminate", recurring: true, winnerCount: 3, keepCount: 2 });
     expect(picksFor(r, { tickets: 9, names: 6 })).toBe(3);
-    expect(picksFor(r, { tickets: 9, names: 4 })).toBe(2);
-    expect(picksFor(r, { tickets: 9, names: 2 })).toBe(0);
-    expect(isFinished(r, { tickets: 9, names: 2 }, 1)).toBe(true);
-    expect(isFinished(r, { tickets: 9, names: 3 }, 1)).toBe(false);
+    expect(picksFor(r, { tickets: 4, names: 4 })).toBe(2);
+    expect(picksFor(r, { tickets: 2, names: 2 })).toBe(0);
+    // Tickets are lives: 2 names holding 9 tickets still have 7 to lose.
+    expect(picksFor(r, { tickets: 9, names: 2 })).toBe(3);
+    expect(isFinished(r, { tickets: 9, names: 2 }, 1)).toBe(false);
+    expect(isFinished(r, { tickets: 2, names: 2 }, 1)).toBe(true);
+    // Fewer names than the target is fine: one name holds two of the last tickets.
+    expect(isFinished(r, { tickets: 2, names: 1 }, 1)).toBe(true);
+    // One name holding every ticket left has won.
+    expect(isFinished(r, { tickets: 5, names: 1 }, 1)).toBe(true);
   });
 
   it("stops after the draw limit", () => {

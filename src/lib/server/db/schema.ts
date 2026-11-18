@@ -81,7 +81,7 @@ export const raffle = pgTable(
     maxDraws: integer("max_draws"),
     /** `win` mode: winning tickets go back in the hat for later rounds. */
     returnPicked: boolean("return_picked").notNull().default(false),
-    /** `eliminate` mode: a repeating raffle finishes when this many names are left. */
+    /** `eliminate` mode: a repeating raffle finishes when this many tickets are left (tickets are lives). */
     keepCount: integer("keep_count").notNull().default(1),
     pickPlan: pickPlan("pick_plan").notNull().default("fixed"),
     /** `win` + `spread`: winners to pull over the whole raffle. */

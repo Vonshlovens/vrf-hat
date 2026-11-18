@@ -7,14 +7,18 @@ export type RoundRules = {
   /** Tickets pulled per draw, when picks are `fixed`. */
   winnerCount: number;
   recurring: boolean;
-  /** `eliminate`: a repeating raffle stops when this many names are left. */
+  /**
+   * `eliminate`: a repeating raffle stops when this many tickets are left.
+   * Tickets are lives: a name is out once all of its tickets are pulled, so
+   * ending on N tickets leaves at most N names (fewer if one holds several).
+   */
   keepCount: number;
   /** `win`: winning tickets go back in the hat. */
   returnPicked: boolean;
   maxDraws: number | null;
   /**
    * `fixed`: every draw pulls `winnerCount`. `spread`: the draws still planned
-   * share out what's left to pull (eliminations down to `keepCount`, or
+   * share out what's left to pull (tickets down to `keepCount`, or
    * `pickTotal` winners) so it comes out exactly on the last planned draw.
    */
   pickPlan: "fixed" | "spread";
@@ -68,9 +72,9 @@ function firstShare(total: number, draws: number): number {
   return total < draws ? 0 : Math.ceil(total / draws);
 }
 
-/** What a `spread` raffle still has to pull: names to eliminate, or winners to draw. */
+/** What a `spread` raffle still has to pull: tickets to eliminate, or winners to draw. */
 export function stillToPull(r: RoundRules, hat: Hat, pulled: number): number {
-  if (r.mode === "eliminate") return Math.max(0, hat.names - r.keepCount);
+  if (r.mode === "eliminate") return Math.max(0, hat.tickets - r.keepCount);
   return Math.max(0, (r.pickTotal ?? 0) - pulled);
 }
 
@@ -79,12 +83,12 @@ export function stillToPull(r: RoundRules, hat: Hat, pulled: number): number {
  *
  * A single draw needs a full hat. A repeating raffle pulls what it can: the
  * last round of a `win` raffle takes whatever is left, and an elimination
- * round never pulls so many that fewer than `keepCount` names could remain.
+ * round never pulls the hat below `keepCount` tickets.
  * A `spread` raffle with a known number of draws left takes its share.
  */
 export function picksFor(r: RoundRules, hat: Hat, ctx?: PlanContext): number {
   if (!r.recurring) return hat.tickets >= r.winnerCount ? r.winnerCount : 0;
-  const cap = Math.max(0, r.mode === "eliminate" ? hat.names - r.keepCount : hat.tickets);
+  const cap = Math.max(0, r.mode === "eliminate" ? hat.tickets - r.keepCount : hat.tickets);
   if (r.pickPlan === "spread" && ctx?.draws) {
     const need = stillToPull(r, hat, ctx.pulled);
     let share = firstShare(need, ctx.draws);
@@ -104,25 +108,21 @@ export function isFinished(
   if (!r.recurring) return true;
   if (r.maxDraws !== null && drawsDone >= r.maxDraws) return true;
   if (r.mode === "eliminate") {
-    if (hatAfter.names <= r.keepCount) return true;
+    if (hatAfter.tickets <= r.keepCount) return true;
+    // One name holds every ticket left: it has won, whatever its count.
+    if (hatAfter.names <= 1) return true;
   } else {
     if (hatAfter.tickets === 0) return true;
     if (r.pickPlan === "spread" && ctx && ctx.pulled >= (r.pickTotal ?? 0)) return true;
   }
-  if (ctx?.draws === 0) {
-    // The calendar has run out. An elimination that was meant to land on its
-    // target but didn't (a name holding several tickets survived a pull)
-    // stays open so the host can finish it by hand.
-    return !(r.mode === "eliminate" && r.pickPlan === "spread");
-  }
-  return false;
+  // The calendar has run out.
+  return ctx?.draws === 0;
 }
 
 export type PlannedDraw = {
   /** Tickets this draw pulls; 0: it will be skipped. */
   picks: number;
-  /** Names left in the hat afterwards. A best case when names hold several tickets. */
-  namesLeft: number;
+  /** Tickets left in the hat afterwards. */
   ticketsLeft: number;
 };
 
@@ -139,12 +139,11 @@ export function planDraws(r: RoundRules, hat: Hat, draws: number, pulled = 0): P
     pulled += picks;
     if (removesPicked(r)) {
       tickets -= picks;
-      // Exact when every name holds one ticket. Otherwise it's the plan's
-      // intent: a pull can hit a name that still has other tickets in, and
-      // the next draw's recount makes up for it.
-      names = r.mode === "eliminate" ? names - picks : Math.min(names, tickets);
+      // Names only matter here as "is anyone left": which names lose their
+      // last ticket isn't known until the draw.
+      names = Math.min(names, tickets);
     }
-    out.push({ picks, namesLeft: names, ticketsLeft: tickets });
+    out.push({ picks, ticketsLeft: tickets });
   }
   return out;
 }
