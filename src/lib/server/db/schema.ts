@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { user } from "./auth.schema.ts";
+import { organization, user } from "./auth.schema.ts";
 
 export * from "./auth.schema.ts";
 
@@ -38,6 +38,14 @@ export const raffle = pgTable(
     hostId: text("host_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Null: anyone with the link can see the raffle. Set: only the host and
+     * this organization's members can see it or its sealed lists. The
+     * on-chain record is the same either way, and holds no names.
+     */
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "cascade",
+    }),
     mode: raffleMode("mode").notNull().default("win"),
     /** Tickets pulled per draw: winners, or eliminations in `eliminate` mode. */
     winnerCount: integer("winner_count").notNull().default(1),
@@ -63,6 +71,7 @@ export const raffle = pgTable(
   },
   (t) => [
     index("raffle_host_idx").on(t.hostId),
+    index("raffle_org_idx").on(t.organizationId),
     index("raffle_due_idx").on(t.nextDrawAt),
     check("raffle_winner_count_positive", sql`${t.winnerCount} > 0`),
   ],

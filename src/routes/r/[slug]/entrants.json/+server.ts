@@ -1,17 +1,19 @@
 import { error } from "@sveltejs/kit";
-import { committedList, getRaffle, listDraws } from "#lib/server/raffles.ts";
+import { visibleRaffle } from "#lib/server/orgs.ts";
+import { committedList, listDraws } from "#lib/server/raffles.ts";
 import type { RequestHandler } from "./$types";
 
 /**
  * A round's committed list, published so anyone can rebuild the Merkle root.
  * `?round=N` picks the round; the default is the latest. A name holding
  * several tickets appears once per ticket.
+ * An organization's raffle answers only its members (by session cookie),
+ * and 404s for everyone else.
  * Format: { raffleId, round, mode, raffleKey, chainId, contract, root, pickCount,
  *           entrants: [{ index, ticket, label }] }
  */
-export const GET: RequestHandler = async ({ params, url }) => {
-  const raffle = await getRaffle(params.slug);
-  if (!raffle) error(404, "No raffle at this address.");
+export const GET: RequestHandler = async ({ params, url, locals }) => {
+  const raffle = await visibleRaffle(params.slug, locals.user?.id);
   const draws = await listDraws(raffle.id);
   const wanted = url.searchParams.get("round");
   const draw = wanted ? draws.find((d) => String(d.round) === wanted) : draws.at(-1);
@@ -33,6 +35,10 @@ export const GET: RequestHandler = async ({ params, url }) => {
       winnerCount: draw.pickCount,
       entrants: await committedList(draw.id),
     },
-    { headers: { "cache-control": "public, max-age=60" } },
+    {
+      headers: {
+        "cache-control": raffle.organizationId ? "private, no-store" : "public, max-age=60",
+      },
+    },
   );
 };

@@ -1,11 +1,11 @@
 import * as env from "$app/env/private";
 import { betterAuth } from "better-auth/minimal";
-import { magicLink } from "better-auth/plugins";
+import { magicLink, organization } from "better-auth/plugins";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { sveltekitCookies } from "better-auth/svelte-kit";
 import { getRequestEvent } from "$app/server";
 import { db } from "./db/index.ts";
-import { sendMagicLinkEmail } from "./email.ts";
+import { sendInvitationEmail, sendMagicLinkEmail } from "./email.ts";
 
 type ProviderId = "github" | "google" | "discord";
 
@@ -33,6 +33,20 @@ export const auth = betterAuth({
       // does, which would use up the one-time token; they don't click buttons.
       sendMagicLink: ({ email, url }) =>
         sendMagicLinkEmail(email, `${env.ORIGIN}/login/confirm${new URL(url).search}`),
+    }),
+    organization({
+      // Only invited people see an organization's raffles, so an invitation
+      // is the whole access grant: it can only be accepted by a signed-in
+      // account whose email matches, and better-auth checks that.
+      invitationExpiresIn: 7 * 24 * 60 * 60,
+      cancelPendingInvitationsOnReInvite: true,
+      requireEmailVerificationOnInvitation: true,
+      sendInvitationEmail: ({ id, email, organization, inviter }) =>
+        sendInvitationEmail(email, {
+          orgName: organization.name,
+          inviterName: inviter.user.name || inviter.user.email,
+          url: `${env.ORIGIN}/invite/${id}`,
+        }),
     }),
     sveltekitCookies(getRequestEvent), // must be last
   ],

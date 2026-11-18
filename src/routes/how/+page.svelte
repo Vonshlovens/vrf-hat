@@ -106,6 +106,11 @@
       You can also search for any ticket and ask the contract itself whether it was in the sealed list.
       On a local test chain the proof check is skipped, because there is no real Chainlink there.
     </p>
+    <p class="prose intro">
+      Names never go on the blockchain, only a fingerprint of the list. A raffle made for an
+      organization shows its names, tickets and results to members only, and only members can run
+      its verify page.
+    </p>
   </section>
 
   <section class="section" id="by-hand">

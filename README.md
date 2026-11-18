@@ -27,6 +27,16 @@ A raffle can:
 The leaf format, tree rules and draw key are in `src/lib/draw/commitment.ts`. Each sealed list is
 published at `/r/<slug>/entrants.json?round=<n>` (the latest round without `round`).
 
+### Organizations
+
+Signed-in people can create organizations and invite others by email (better-auth's
+`organization` plugin; owner, admin and member roles). A raffle created for an organization is
+visible only to its host and members: the page, the verify pages, `entrants.json` and `status` all
+404 for anyone else (`src/lib/server/orgs.ts`, `visibleRaffle`). Nothing on-chain changes; the
+contract only ever sees a hashed key, a Merkle root and counts, and each leaf includes a random
+ticket, so the root can't be matched against guessed names. `pnpm verify-draw` can't fetch an
+organization's list without a session; save it from the verify page instead.
+
 ### Rounds, modes and tickets
 
 The contract is unchanged by any of this: it still sees a key, a root, a ticket count and a pick

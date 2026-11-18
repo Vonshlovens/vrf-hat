@@ -92,7 +92,10 @@
   }
 </script>
 
-<svelte:head><title>{raffle.title} | VRF Hat</title></svelte:head>
+<svelte:head>
+  <title>{raffle.title} | VRF Hat</title>
+  {#if data.org}<meta name="robots" content="noindex" />{/if}
+</svelte:head>
 
 <article class="page">
   <header class="page-head">
@@ -106,9 +109,14 @@
         {#if raffle.status === "requested"}<span class="live" aria-hidden="true"></span>{/if}{statusWord}
       </span>
       <span class="meta">{rule} · {hatText}</span>
+      {#if data.org}
+        <span class="tag">members of <a href="/orgs/{data.org.slug}">{data.org.name}</a> only</span>
+      {/if}
     </p>
     {#if raffle.status === "open"}
-      <button class="btn small" onclick={copyLink}>{copied ? "Link copied" : "Copy link"}</button>
+      <button class="btn small" onclick={copyLink} title={data.org ? "Only members can open it" : undefined}>
+        {copied ? "Link copied" : "Copy link"}
+      </button>
     {:else if !raffle.recurring}
       <a class="btn small" href="/r/{raffle.slug}/verify">Verify</a>
     {/if}

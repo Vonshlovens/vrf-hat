@@ -92,7 +92,10 @@
   });
 </script>
 
-<svelte:head><title>Verify: {raffle.title} | VRF Hat</title></svelte:head>
+<svelte:head>
+  <title>Verify: {raffle.title} | VRF Hat</title>
+  {#if raffle.private}<meta name="robots" content="noindex" />{/if}
+</svelte:head>
 
 <article class="page reading">
   <header class="page-head">

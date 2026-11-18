@@ -19,6 +19,7 @@
     <nav aria-label="Main">
       {#if data.user}
         <a href="/new" aria-current={page.url.pathname === "/new" ? "page" : undefined}>New raffle</a>
+        <a href="/orgs" aria-current={page.url.pathname.startsWith("/orgs") ? "page" : undefined}>Organizations</a>
         <form method="POST" action="/logout">
           <button class="btn ghost small" type="submit">Sign out</button>
         </form>

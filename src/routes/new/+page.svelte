@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  let { form } = $props();
+  let { data, form } = $props();
 
   // The form's own values after a rejected submit, otherwise the defaults.
   // svelte-ignore state_referenced_locally
@@ -58,6 +58,27 @@
         >{form?.description ?? ""}</textarea
       >
     </div>
+
+    {#if data.orgs.length}
+      <div class="field">
+        <label for="audience">Who can see it</label>
+        <select
+          class="select"
+          id="audience"
+          name="audience"
+          value={form?.audience ?? data.preselect}
+          aria-describedby="audience-hint"
+        >
+          <option value="">Anyone with the link</option>
+          {#each data.orgs as org (org.id)}
+            <option value={org.id}>Members of {org.name}</option>
+          {/each}
+        </select>
+        <p class="hint" id="audience-hint">
+          Names, tickets and results. The on-chain record holds no names either way. Can't be changed later.
+        </p>
+      </div>
+    {/if}
 
     <div class="field">
       <span class="field-label" id="mode-label">A name that's drawn</span>

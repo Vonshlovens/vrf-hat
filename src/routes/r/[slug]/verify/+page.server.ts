@@ -1,11 +1,13 @@
 import { error } from "@sveltejs/kit";
 import { raffleKeyPreimage } from "#lib/draw/commitment.ts";
-import { getRaffle, listDraws } from "#lib/server/raffles.ts";
+import { visibleRaffle } from "#lib/server/orgs.ts";
+import { listDraws } from "#lib/server/raffles.ts";
 import type { PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ params, url }) => {
-  const raffle = await getRaffle(params.slug);
-  if (!raffle) error(404, "No raffle at this address.");
+export const load: PageServerLoad = async ({ params, url, locals }) => {
+  const raffle = await visibleRaffle(params.slug, locals.user?.id, {
+    next: url.pathname + url.search,
+  });
   const draws = await listDraws(raffle.id);
   const wanted = url.searchParams.get("round");
   const draw = wanted ? draws.find((d) => String(d.round) === wanted) : draws.at(-1);
@@ -17,6 +19,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
       mode: raffle.mode,
       recurring: raffle.recurring,
       raffleId: raffle.id,
+      private: Boolean(raffle.organizationId),
     },
     rounds: draws.map((d) => d.round),
     draw: draw

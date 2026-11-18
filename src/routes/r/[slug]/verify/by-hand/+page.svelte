@@ -5,7 +5,10 @@
   const eliminate = $derived(raffle.mode === "eliminate");
 </script>
 
-<svelte:head><title>By hand: {raffle.title} | VRF Hat</title></svelte:head>
+<svelte:head>
+  <title>By hand: {raffle.title} | VRF Hat</title>
+  {#if raffle.private}<meta name="robots" content="noindex" />{/if}
+</svelte:head>
 
 <article class="page reading">
   <header class="page-head">

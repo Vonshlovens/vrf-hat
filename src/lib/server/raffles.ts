@@ -12,7 +12,16 @@ import { isFinished, parseNameLine, picksFor, removesPicked, type Hat } from "#l
 import { nextAfter } from "#lib/draw/schedule.ts";
 import { pickWinners } from "#lib/draw/winners.ts";
 import { db } from "./db/index.ts";
-import { draw, drawSlot, entry, raffle, type Draw, type Entry, type Raffle } from "./db/schema.ts";
+import {
+  draw,
+  drawSlot,
+  entry,
+  organization,
+  raffle,
+  type Draw,
+  type Entry,
+  type Raffle,
+} from "./db/schema.ts";
 import { drawsEnabled, fulfillWithMock, readDraw, sendDrawRequest } from "./chain.ts";
 
 /** Something the person can fix; the message is shown to them. */
@@ -28,7 +37,7 @@ const ABANDONED_AFTER_MS = 10 * 60_000;
 
 const SLUG_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
 
-function newSlug() {
+export function newSlug() {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
   return Array.from(bytes, (b) => SLUG_ALPHABET[b % SLUG_ALPHABET.length]).join("");
 }
@@ -54,10 +63,15 @@ export type RaffleSettings = Pick<
   | "keepCount"
 >;
 
-export async function createRaffle(hostId: string, input: RaffleSettings) {
+/** `organizationId` must be one the host belongs to; the caller checks. */
+export async function createRaffle(
+  hostId: string,
+  input: RaffleSettings,
+  organizationId: string | null = null,
+) {
   const [row] = await db
     .insert(raffle)
-    .values({ ...input, hostId, slug: newSlug() })
+    .values({ ...input, hostId, organizationId, slug: newSlug() })
     .returning();
   return row;
 }
@@ -69,11 +83,16 @@ export async function getRaffle(slug: string) {
 
 export async function rafflesHostedBy(hostId: string) {
   return db
-    .select({ raffle, tickets: sql<number>`coalesce(sum(${entry.count}), 0)::int` })
+    .select({
+      raffle,
+      tickets: sql<number>`coalesce(sum(${entry.count}), 0)::int`,
+      orgName: organization.name,
+    })
     .from(raffle)
     .leftJoin(entry, eq(entry.raffleId, raffle.id))
+    .leftJoin(organization, eq(organization.id, raffle.organizationId))
     .where(eq(raffle.hostId, hostId))
-    .groupBy(raffle.id)
+    .groupBy(raffle.id, organization.name)
     .orderBy(desc(raffle.createdAt));
 }
 

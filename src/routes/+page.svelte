@@ -15,11 +15,13 @@
     </header>
     <table class="table rows">
       <tbody>
-        {#each data.hosted as { raffle, tickets } (raffle.id)}
+        {#each data.hosted as { raffle, tickets, orgName } (raffle.id)}
           <tr>
             <th scope="row"><a class="row-link" href="/r/{raffle.slug}">{raffle.title}</a></th>
             <td class="w-min meta kind">
-              {raffle.mode === "eliminate" ? "elimination" : "winners"}{raffle.recurring ? ", repeating" : ""}
+              {raffle.mode === "eliminate" ? "elimination" : "winners"}{raffle.recurring ? ", repeating" : ""}{orgName
+                ? `, ${orgName} only`
+                : ""}
             </td>
             <td class="num w-min">{tickets}</td>
             <td class="w-min">

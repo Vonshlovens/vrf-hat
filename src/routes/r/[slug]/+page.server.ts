@@ -8,7 +8,6 @@ import {
   addEntry,
   addNames,
   endRaffle,
-  getRaffle,
   listEntries,
   listRounds,
   removeEntry,
@@ -19,26 +18,28 @@ import {
   syncDraw,
   ticketsLeft,
 } from "#lib/server/raffles.ts";
+import { orgName, visibleRaffle } from "#lib/server/orgs.ts";
 import { parseSchedule } from "#lib/server/settings.ts";
 import type { Actions, PageServerLoad } from "./$types";
 
-async function load_(slug: string) {
-  const raffle = await getRaffle(slug);
-  if (!raffle) error(404, "No raffle at this address.");
-  return raffle;
-}
+const load_ = (slug: string, userId: string | undefined) =>
+  visibleRaffle(slug, userId, { next: `/r/${slug}` });
 
 const pad = (n: number) => String(n).padStart(4, "0");
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-  let raffle = await load_(params.slug);
+  let raffle = await load_(params.slug, locals.user?.id);
   if (raffle.status === "requested") {
     raffle = await syncDraw(raffle).catch((err) => {
       console.error("syncDraw failed", err);
       return raffle;
     });
   }
-  const [entries, rounds] = await Promise.all([listEntries(raffle.id), listRounds(raffle)]);
+  const [entries, rounds, org] = await Promise.all([
+    listEntries(raffle.id),
+    listRounds(raffle),
+    raffle.organizationId ? orgName(raffle.organizationId) : null,
+  ]);
   const userId = locals.user?.id;
   const eliminate = raffle.mode === "eliminate";
   const tz = raffle.timezone ?? "UTC";
@@ -97,6 +98,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       returnPicked: raffle.returnPicked,
       keepCount: raffle.keepCount,
     },
+    /** Set when only this organization's members can see the raffle. */
+    org,
     isHost: userId === raffle.hostId,
     entered: entries.some((e) => e.userId && e.userId === userId),
     entries: rows,
@@ -115,7 +118,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 };
 
 async function hostRaffle(slug: string, userId: string | undefined) {
-  const raffle = await load_(slug);
+  const raffle = await load_(slug, userId);
   if (!userId || raffle.hostId !== userId) error(403, "Only the host can do that.");
   return raffle;
 }
@@ -128,7 +131,7 @@ function handle(err: unknown) {
 export const actions: Actions = {
   enter: async ({ params, locals, request }) => {
     if (!locals.user) redirect(303, `/login?next=/r/${params.slug}`);
-    const raffle = await load_(params.slug);
+    const raffle = await load_(params.slug, locals.user.id);
     if (!raffle.selfEntry && raffle.hostId !== locals.user.id) {
       return fail(400, { error: "The host adds names for this raffle." });
     }

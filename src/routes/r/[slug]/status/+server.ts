@@ -1,5 +1,5 @@
-import { error } from "@sveltejs/kit";
-import { getRaffle, tick } from "#lib/server/raffles.ts";
+import { visibleRaffle } from "#lib/server/orgs.ts";
+import { tick } from "#lib/server/raffles.ts";
 import type { RequestHandler } from "./$types";
 
 /**
@@ -7,9 +7,8 @@ import type { RequestHandler } from "./$types";
  * scheduled draw is due. Polling also moves the raffle along, so a draw
  * doesn't depend on the cron trigger alone.
  */
-export const GET: RequestHandler = async ({ params }) => {
-  const raffle = await getRaffle(params.slug);
-  if (!raffle) error(404, "No raffle at this address.");
+export const GET: RequestHandler = async ({ params, locals }) => {
+  const raffle = await visibleRaffle(params.slug, locals.user?.id);
   const now = await tick(raffle);
   return Response.json(
     { status: now.status, nextDrawAt: now.nextDrawAt?.toISOString() ?? null },
