@@ -31,3 +31,6 @@ worker-configuration.d.ts
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Agent worktrees
+.claude/worktrees/
