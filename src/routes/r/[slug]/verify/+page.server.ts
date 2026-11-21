@@ -1,5 +1,8 @@
 import { error } from "@sveltejs/kit";
+import { and, eq } from "drizzle-orm";
 import { raffleKeyPreimage } from "#lib/draw/commitment.ts";
+import { db } from "#lib/server/db/index.ts";
+import { entry } from "#lib/server/db/schema.ts";
 import { visibleRaffle } from "#lib/server/orgs.ts";
 import { listDraws } from "#lib/server/raffles.ts";
 import type { PageServerLoad } from "./$types";
@@ -12,6 +15,14 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
   const wanted = url.searchParams.get("round");
   const draw = wanted ? draws.find((d) => String(d.round) === wanted) : draws.at(-1);
   if (wanted && !draw) error(404, "No such round.");
+  // The signed-in viewer's own entry, so the simple view can find their
+  // tickets in the sealed list. Which entry is theirs is the app's word.
+  const [mine] = locals.user
+    ? await db
+        .select({ label: entry.label, ticket: entry.ticket })
+        .from(entry)
+        .where(and(eq(entry.raffleId, raffle.id), eq(entry.userId, locals.user.id)))
+    : [];
   return {
     raffle: {
       slug: raffle.slug,
@@ -22,6 +33,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
       private: Boolean(raffle.organizationId),
     },
     rounds: draws.map((d) => d.round),
+    mine: mine ?? null,
     draw: draw
       ? {
           round: draw.round,
