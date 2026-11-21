@@ -721,6 +721,15 @@ export async function setSchedule(r: Raffle, schedule: ScheduleSettings & PickSe
 }
 
 /** Finishes a repeating raffle early. Rounds already drawn stand. */
+/**
+ * Whether signed-in people can still add their own name. Only affects entries
+ * from now on: names already in stay, and sealed lists don't change.
+ */
+export async function setSelfEntry(r: Raffle, selfEntry: boolean) {
+  if (r.status === "drawn") throw new RaffleError("This raffle has finished.");
+  await db.update(raffle).set({ selfEntry }).where(eq(raffle.id, r.id));
+}
+
 export async function endRaffle(r: Raffle) {
   if (!r.recurring) throw new RaffleError("This raffle has a single draw.");
   const [ended] = await db

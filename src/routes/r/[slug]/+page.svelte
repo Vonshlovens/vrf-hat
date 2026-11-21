@@ -165,6 +165,7 @@
             <time class="plan-day" datetime={row.at}>{row.day}</time>
             <span class="plan-text">
               {row.time} · {#if row.picks === 0}<span class="status" data-tone="idle">skipped</span>{:else}{row.text}{/if}
+              {#if row.finishes}<small>last draw</small>{/if}
             </span>
           </li>
         {/each}
@@ -313,6 +314,25 @@
       {:else}
         <p class="hint">Draws aren't configured on this server.</p>
       {/if}
+
+      <form method="POST" action="?/selfEntry" use:enhance class="self-entry">
+        <label class="check">
+          <input
+            name="selfEntry"
+            type="checkbox"
+            checked={raffle.selfEntry}
+            onchange={(e) => e.currentTarget.form?.requestSubmit()}
+          />
+          <span>
+            People can add their own name
+            <span class="hint">
+              Turning this off stops new sign-ups. Names already in stay, and you can still add names.
+            </span>
+          </span>
+        </label>
+        <noscript><button class="btn small">Save</button></noscript>
+        {#if form?.selfEntrySaved}<span class="status" data-tone="ok">saved</span>{/if}
+      </form>
 
       {#if raffle.recurring}
         <details class="more" open={Boolean(form?.scheduled)}>
@@ -627,6 +647,17 @@
   .plan-day {
     font-weight: var(--fw-bold);
     white-space: nowrap;
+  }
+  .self-entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1ch;
+    margin-block: var(--s-3);
+  }
+  .plan-text small {
+    margin-inline-start: 1ch;
+    color: var(--ink-3);
   }
   .upcoming li[data-state="done"] .plan-day {
     color: var(--ink-3);

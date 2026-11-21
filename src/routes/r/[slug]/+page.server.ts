@@ -21,6 +21,7 @@ import {
   removeEntry,
   setEntryCount,
   setSchedule,
+  setSelfEntry,
   slotRanges,
   startDraw,
   syncDraw,
@@ -143,6 +144,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         time: formatTime(p.at, tz),
         picks: p.picks,
         text: p.text,
+        finishes: p.finishes,
       })),
       more: Math.max(0, planned.length - PLAN_SHOWN),
       last: planned.length ? formatDay(planned.at(-1)!.at, tz, now) : null,
@@ -272,6 +274,16 @@ export const actions: Actions = {
       return handle(err);
     }
     return { scheduled: true };
+  },
+
+  selfEntry: async ({ params, locals, request }) => {
+    const raffle = await hostRaffle(params.slug, locals.user?.id);
+    try {
+      await setSelfEntry(raffle, (await request.formData()).get("selfEntry") === "on");
+    } catch (err) {
+      return handle(err);
+    }
+    return { selfEntrySaved: true };
   },
 
   addRecipients: async ({ params, locals, request }) => {

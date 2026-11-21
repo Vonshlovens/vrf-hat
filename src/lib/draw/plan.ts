@@ -1,7 +1,7 @@
 // The calendar's draws with what each one pulls, for the editor's preview
 // and the raffle page. Pure, so both show what the server will do.
 import { isBounded, plannedDates, type Calendar } from "./calendar.ts";
-import { planDraws, type Hat, type RoundRules } from "./rounds.ts";
+import { isFinished, planDraws, type Hat, type RoundRules } from "./rounds.ts";
 
 export type PlanRow = {
   at: Date;
@@ -10,9 +10,15 @@ export type PlanRow = {
   ticketsLeft: number;
   /** "4 out · 16 left", "3 winners", "skipped". */
   text: string;
+  /** The raffle finishes with this draw (only ever the last row). */
+  finishes: boolean;
 };
 
-/** The draws still to come after `now`, with their pick counts if the hat stays as it is. */
+/**
+ * The draws still to come after `now`, with their pick counts if the hat stays
+ * as it is. Stops at the draw that finishes the raffle (an elimination down to
+ * `keepCount`, an emptied hat), since the calendar's later dates won't happen.
+ */
 export function planRows(
   r: RoundRules,
   cal: Calendar,
@@ -26,10 +32,31 @@ export function planRows(
   const rules = isBounded(cal) ? r : { ...r, pickPlan: "fixed" as const };
   const draws = planDraws(rules, hat, dates.length, pulled);
   const multi = hat.tickets !== hat.names;
-  return dates.map((at, i) => {
+  const rows: PlanRow[] = [];
+  let names = hat.names;
+  for (const [i, at] of dates.entries()) {
     const { picks, ticketsLeft } = draws[i];
-    return { at, picks, ticketsLeft, text: pickText(r.mode, picks, ticketsLeft, multi) };
-  });
+    pulled += picks;
+    names = Math.min(names, ticketsLeft);
+    // A skipped draw (nothing in the hat yet) doesn't finish anything.
+    const finishes =
+      picks > 0 &&
+      isFinished(
+        { ...rules, recurring: true, maxDraws: null },
+        { tickets: ticketsLeft, names },
+        0,
+        { draws: dates.length - i - 1, pulled },
+      );
+    rows.push({
+      at,
+      picks,
+      ticketsLeft,
+      finishes,
+      text: pickText(r.mode, picks, ticketsLeft, multi),
+    });
+    if (finishes) break;
+  }
+  return rows;
 }
 
 export function pickText(

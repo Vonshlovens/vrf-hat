@@ -539,7 +539,7 @@
             <span class="plan-text">
               {formatTime(row.at, tz)} · {#if row.picks === 0}<span class="status" data-tone="idle">skipped</span
                 >{:else}{row.text}{/if}
-              {#if i === rows.length - 1 && eliminate && spread}<small>last draw</small>{/if}
+              {#if row.finishes || (i === rows.length - 1 && eliminate && spread)}<small>last draw</small>{/if}
             </span>
           </li>
         {/each}
@@ -766,5 +766,9 @@
   .plan li[data-state="done"] .plan-day {
     color: var(--ink-3);
     font-weight: var(--fw-regular);
+  }
+  .plan-text small {
+    margin-inline-start: 1ch;
+    color: var(--ink-3);
   }
 </style>
