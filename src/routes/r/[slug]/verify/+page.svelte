@@ -6,6 +6,8 @@
   import { raffleDrawAbi } from "#lib/chain/raffle-draw-abi.ts";
   import { entrantLeaf, merkleProof } from "#lib/draw/commitment.ts";
   import { verifyDraw, type VerifyResult } from "#lib/verify/run.ts";
+  import { slotsOf } from "#lib/verify/story.ts";
+  import SimpleView, { type MineCheck } from "./SimpleView.svelte";
 
   let { data } = $props();
   const raffle = $derived(data.raffle);
@@ -15,6 +17,7 @@
   let result = $state<VerifyResult | null>(null);
   let running = $state(false);
   let query = $state("");
+  let mine = $state<MineCheck | null>(null);
   let lookup = $state<{ label: string; ok: boolean | null; proof: string[]; leaf: string } | null>(null);
 
   const pad = (n: number) => String(n).padStart(4, "0");
@@ -41,6 +44,7 @@
     running = true;
     result = null;
     lookup = null;
+    mine = null;
     const finished = await verifyDraw(
       {
         chainId: target.chainId,
@@ -59,6 +63,40 @@
     if (draw !== target) return;
     result = finished;
     running = false;
+    if (data.mine && !finished.error && finished.steps[0].status === "pass") {
+      await checkMine(target, finished, data.mine);
+    }
+  }
+
+  /** Ask the contract itself whether the viewer's tickets are in the sealed list. */
+  async function checkMine(
+    target: NonNullable<typeof draw>,
+    r: VerifyResult,
+    own: { label: string; ticket: string },
+  ) {
+    const slots = slotsOf(r.entrants, own.ticket);
+    const ask = slots.slice(0, 12);
+    let check: MineCheck = { label: own.label, slots, asked: ask.length, ok: slots.length ? null : true };
+    mine = check;
+    if (!ask.length) return;
+    try {
+      const leaves = r.entrants.map(entrantLeaf);
+      const client = createPublicClient({ chain: chainInfo(target.chainId).chain, transport: http(PUBLIC_RPC_URL) });
+      const answers = await Promise.all(
+        ask.map((i) =>
+          client.readContract({
+            address: target.contract,
+            abi: raffleDrawAbi,
+            functionName: "isCommittedEntrant",
+            args: [target.raffleKey, leaves[i], merkleProof(leaves, i)],
+          }),
+        ),
+      );
+      check = { ...check, ok: answers.every(Boolean) };
+    } catch (err) {
+      check = { ...check, ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+    if (draw === target) mine = check;
   }
 
   async function checkEntry(index: number) {
@@ -115,7 +153,21 @@
   {#if !draw}
     <p class="meta">Nothing has been drawn yet. Check back after the first draw.</p>
   {:else}
-    <div class="verdict" role="status" aria-live="polite">
+    <SimpleView
+      {result}
+      {running}
+      {eliminate}
+      {mine}
+      byHandHref="/r/{raffle.slug}/verify/by-hand?round={draw.round}"
+      onagain={run}
+    />
+
+    <details class="tech" open={verdict === "fail"}>
+      <summary>
+        <h2 class="h3">Technical details</h2>
+        <span class="meta small">Every check, with the raw numbers</span>
+      </summary>
+    <div class="verdict">
       {#if verdict === "pass"}
         <span class="status" data-tone="ok">verified</span>
         <span>All {allChecks.length} checks passed.</span>
@@ -251,6 +303,7 @@
         <a href="/how#verify">What's checked</a>
       </p>
     {/if}
+    </details>
   {/if}
 </article>
 
@@ -314,15 +367,43 @@
   .note {
     margin-top: var(--s-1);
   }
-  details {
+  .tech {
+    margin-top: calc(var(--lh) * 2);
+    border-top: var(--rule-w) solid var(--rule);
+  }
+  .tech > summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--s-1) 1.5ch;
+    padding: var(--s-3) 0;
+    cursor: pointer;
+    list-style: none;
+  }
+  .tech > summary::-webkit-details-marker {
+    display: none;
+  }
+  .tech > summary h2::before {
+    content: "+";
+    display: inline-block;
+    width: 2ch;
+    color: var(--ink-3);
+  }
+  .tech[open] > summary h2::before {
+    content: "−";
+  }
+  .tech[open] > summary {
+    margin-bottom: var(--s-2);
+  }
+  .link details {
     margin-top: var(--s-1);
   }
-  summary {
+  .link summary {
     width: fit-content;
     cursor: pointer;
     color: var(--ink-3);
   }
-  summary:hover {
+  .link summary:hover {
     color: var(--ink);
   }
   .detail {

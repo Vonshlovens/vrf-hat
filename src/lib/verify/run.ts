@@ -53,11 +53,29 @@ export type VerifyInput = {
   keyText?: string;
 };
 
+/** Plain facts for the simple view. Every one is read from the chain by this file. */
+export type Timeline = {
+  /** Unix seconds of the block that stored the fingerprint and asked for the number. */
+  sealedAt: number | null;
+  /** True when the stored request is a re-request after an unanswered first one. */
+  retried: boolean;
+  requestHref: string | null;
+  /** Unix seconds of the block in which Chainlink's number arrived. */
+  drawnAt: number | null;
+  fulfilHref: string | null;
+  contractHref: string | null;
+  /** True on a local test chain, where a mock stands in for Chainlink. */
+  mock: boolean;
+  /** Positions pulled, in order, as re-computed here. Step 4 says whether the contract agrees. */
+  picks: number[];
+};
+
 export type VerifyResult = {
   steps: Step[];
   entrants: CommittedEntrant[];
   root: Hex | null;
   shuffle: Shuffle[];
+  timeline: Timeline;
   error?: string;
 };
 
@@ -143,8 +161,23 @@ export async function verifyDraw(
       checks: [],
     },
   ];
-  const result: VerifyResult = { steps, entrants: [], root: null, shuffle: [] };
-  const emit = () => onProgress({ ...result, steps: steps.map((s) => ({ ...s })) });
+  const timeline: Timeline = {
+    sealedAt: null,
+    retried: false,
+    requestHref: null,
+    drawnAt: null,
+    fulfilHref: null,
+    contractHref: link("address", input.contract),
+    mock: info.mockCoordinator,
+    picks: [],
+  };
+  const result: VerifyResult = { steps, entrants: [], root: null, shuffle: [], timeline };
+  const emit = () =>
+    onProgress({
+      ...result,
+      steps: steps.map((s) => ({ ...s })),
+      timeline: { ...timeline, picks: [...timeline.picks] },
+    });
 
   try {
     // ---------------------------------------------------------- on-chain state
@@ -221,6 +254,9 @@ export async function verifyDraw(
     });
     const vrfRequest = coordinatorLogs.find((l) => l.args.requestId === draw.requestId);
 
+    timeline.sealedAt = Number(requestBlock.timestamp);
+    timeline.retried = !requested;
+    timeline.requestHref = link("tx", requestEvent.transactionHash);
     request.facts.push(
       {
         label: retried ? "Re-request transaction" : "Transaction",
@@ -299,6 +335,8 @@ export async function verifyDraw(
       client.getBlock({ blockNumber: draw.fulfilledBlock }),
     ]);
     const seconds = Number(fulfilBlock.timestamp - requestBlock.timestamp);
+    timeline.drawnAt = Number(fulfilBlock.timestamp);
+    timeline.fulfilHref = link("tx", fulfilled.transactionHash);
     proofStep.facts.push(
       {
         label: "Transaction",
@@ -398,6 +436,7 @@ export async function verifyDraw(
     const n = draw.entrantCount;
     const k = draw.winnerCount;
     const local = pickWinners(draw.randomWord, n, k);
+    timeline.picks = local;
     const onChain = await client.readContract({
       address: input.contract,
       abi: raffleDrawAbi,
