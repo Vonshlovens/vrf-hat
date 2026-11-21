@@ -143,6 +143,73 @@ describe("buildResultsEmail", () => {
     expect(m.html).toContain("<strong>Team 20</strong>");
   });
 
+  it("puts an elimination round's pulled tickets in a table", () => {
+    const m = buildResultsEmail(
+      {
+        ...base,
+        raffle: { ...base.raffle, mode: "eliminate" },
+        pulled: [
+          { label: "Team <10>", position: 33, id: "a" },
+          { label: "Team 20", position: 90, id: "b" },
+          { label: "Team <10>", position: 29, id: "a" },
+        ],
+        remaining: [
+          { label: "Team <10>", tickets: 14, id: "a" },
+          { label: "Team 01", tickets: 4, id: "c" },
+        ],
+      },
+      host,
+    );
+    const cells = (html: string) =>
+      [...html.matchAll(/<t[hd][^>]*>(.*?)<\/t[hd]>/g)].map((x) => x[1]!.replace(/<[^>]+>/g, ""));
+    const [picked, remaining] = m.html.split("<table").slice(1);
+    expect(m.html).not.toMatch(/<style|display:\s*(flex|grid)/);
+    expect(picked).toContain("border-collapse:collapse");
+    expect(cells(picked!)).toEqual([
+      "Name",
+      "Tickets pulled",
+      "Ticket numbers",
+      "Left",
+      "Team &lt;10&gt;",
+      "2",
+      "No.&nbsp;0034, No.&nbsp;0030",
+      "14",
+      "Team 20",
+      "1",
+      "No.&nbsp;0091",
+      "out",
+    ]);
+    expect(picked).toContain('<strong style="color:#b42318">out</strong>');
+    expect(cells(remaining!)).toEqual([
+      "Name",
+      "Tickets left",
+      "Team &lt;10&gt;",
+      "14",
+      "Team 01",
+      "4",
+    ]);
+    // The lead above the table stays a sentence/list.
+    expect(m.html).toContain("Out this round</h2>");
+  });
+
+  it("puts winners in a table", () => {
+    const m = buildResultsEmail(base, host);
+    expect(m.html).toMatch(
+      /<th scope="col"[^>]*>Name<\/th><th scope="col"[^>]*>Ticket numbers<\/th>/,
+    );
+    expect(m.html).toContain("<strong>Ana</strong>");
+    expect(m.html).toContain("No.&nbsp;0007");
+    expect(m.html).toMatch(/<th scope="col"[^>]*>Tickets left<\/th>/);
+  });
+
+  it("ends a long hat's table with a count", () => {
+    const remaining = Array.from({ length: 40 }, (_, i) => ({ label: `N${i}`, tickets: 1 }));
+    const m = buildResultsEmail({ ...base, remaining }, host);
+    expect(m.html).toContain(`<td colspan="2"`);
+    expect(m.html).toContain(`…and ${40 - REMAINING_SHOWN} more</td>`);
+    expect(m.html).not.toContain(`>N${REMAINING_SHOWN}<`);
+  });
+
   it("says when nobody is out yet", () => {
     const m = buildResultsEmail(
       {
