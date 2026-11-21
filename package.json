@@ -46,5 +46,6 @@
     "vite-plus": "catalog:",
     "vitest": "catalog:",
     "wrangler": "^4.97.0"
-  }
+  },
+  "packageManager": "pnpm@10.29.3"
 }
