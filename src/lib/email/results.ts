@@ -124,7 +124,9 @@ function byName(r: RoundResult) {
     return {
       label: g.label,
       number: g.numbers.join(", "),
+      numbers: g.numbers,
       lost: g.numbers.length,
+      left: remaining,
       note: remaining > 0 ? `${remaining} left` : "out",
     };
   });
@@ -145,7 +147,9 @@ function content(r: RoundResult) {
     : r.pulled.map((p) => ({
         label: p.label,
         number: pad(p.position + 1),
+        numbers: [pad(p.position + 1)],
         lost: undefined as number | undefined,
+        left: undefined as number | undefined,
         note: "",
       }));
   // An elimination round can pull tickets without putting anyone out: a name
@@ -166,6 +170,7 @@ function content(r: RoundResult) {
       : `${plural(r.remaining.length, "name")}, ${plural(tickets, "ticket")}`;
   const shown = r.remaining.slice(0, REMAINING_SHOWN).map((e) => ({
     label: e.label,
+    tickets: e.tickets,
     extra: e.tickets > 1 ? ` (${e.tickets} tickets)` : "",
   }));
   const more = r.remaining.length - shown.length;
@@ -251,21 +256,74 @@ const esc = (s: string) =>
     (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!,
   );
 
+// Results are data, so they go in real tables with header cells. Styles are
+// inline, with align attributes as a fallback, and nothing relies on flex,
+// grid or a <style> block, so Gmail and Outlook draw them the same.
+const cellStyle =
+  "padding:6px 16px 6px 0;border-bottom:1px solid #e0e0e0;vertical-align:top;text-align:left";
+const headStyle = `${cellStyle};border-bottom-color:#bdbdbd;font-size:13px;font-weight:600;color:#6b6b6b;white-space:nowrap`;
+
+type Column = { head: string; numeric?: boolean };
+
+/** Cells in `rows` and `footer` must already be escaped HTML. */
+function table(columns: Column[], rows: string[][], footer?: string): string {
+  const align = (c: Column, style: string) =>
+    c.numeric
+      ? `align="right" style="${style};text-align:right;white-space:nowrap"`
+      : `align="left" style="${style}"`;
+  const head = columns
+    .map((c) => `<th scope="col" ${align(c, headStyle)}>${esc(c.head)}</th>`)
+    .join("");
+  const body = rows.map(
+    (row) =>
+      `<tr>${row.map((v, i) => `<td ${align(columns[i]!, cellStyle)}>${v}</td>`).join("")}</tr>`,
+  );
+  if (footer) {
+    body.push(
+      `<tr><td colspan="${columns.length}" style="${cellStyle};border-bottom:0;color:#6b6b6b">${footer}</td></tr>`,
+    );
+  }
+  return `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 16px;font-size:15px;line-height:1.4">
+<thead><tr>${head}</tr></thead>
+<tbody>
+${body.join("\n")}
+</tbody>
+</table>
+`;
+}
+
 function htmlBody(r: RoundResult, to: Recipient): string {
   const c = content(r);
   const muted = "color:#6b6b6b";
   const mono = "font-family:ui-monospace,Menlo,Consolas,monospace";
   const list = (items: string[]) =>
     `<ul style="margin:0 0 16px;padding-left:20px">${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
-  const picked = c.picked.length
-    ? list(
-        c.picked.map((p) =>
-          p.lost !== undefined
-            ? `${esc(p.label)}: ${p.lost} <span style="${mono};${muted}">(No.&nbsp;${esc(p.number)})</span>, ${p.note === "out" ? "<strong>out</strong>" : esc(p.note)}`
-            : `<span style="${mono};${muted}">No.&nbsp;${p.number}</span> ${esc(p.label)}`,
-        ),
-      )
-    : `<p style="${muted}">(none)</p>`;
+  const numbers = (ns: string[]) =>
+    `<span style="${mono}">${ns.map((n) => `No.&nbsp;${esc(n)}`).join(", ")}</span>`;
+  let picked: string;
+  if (!c.picked.length) {
+    picked = `<p style="${muted}">(none)</p>`;
+  } else if (r.raffle.mode === "eliminate") {
+    picked = table(
+      [
+        { head: "Name" },
+        { head: "Tickets pulled", numeric: true },
+        { head: "Ticket numbers" },
+        { head: "Left", numeric: true },
+      ],
+      c.picked.map((p) => [
+        esc(p.label),
+        String(p.lost ?? 0),
+        numbers(p.numbers),
+        p.left ? String(p.left) : `<strong style="color:#b42318">out</strong>`,
+      ]),
+    );
+  } else {
+    picked = table(
+      [{ head: "Name" }, { head: c.picked.length === 1 ? "Ticket number" : "Ticket numbers" }],
+      c.picked.map((p) => [`<strong>${esc(p.label)}</strong>`, numbers(p.numbers)]),
+    );
+  }
   let out = "";
   if (c.out) {
     out = c.out.length
@@ -274,9 +332,13 @@ function htmlBody(r: RoundResult, to: Recipient): string {
   }
   let remaining = "";
   if (c.showRemaining) {
-    const items = c.shown.map((e) => `${esc(e.label)}${esc(e.extra)}`);
-    if (c.more > 0) items.push(`<span style="${muted}">…and ${c.more} more</span>`);
-    remaining = `<h2 style="font-size:15px;margin:16px 0 8px">${esc(c.remainingHeading)}: ${esc(c.remainingSummary)}</h2>${items.length ? list(items) : ""}`;
+    const rows = c.shown.map((e) => [esc(e.label), String(e.tickets)]);
+    const more = c.more > 0 ? `…and ${c.more} more` : undefined;
+    remaining = `<h2 style="font-size:15px;margin:16px 0 8px">${esc(c.remainingHeading)}: ${esc(c.remainingSummary)}</h2>${
+      rows.length
+        ? table([{ head: "Name" }, { head: "Tickets left", numeric: true }], rows, more)
+        : ""
+    }`;
   }
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#ffffff;color:#1a1a1a;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5">
